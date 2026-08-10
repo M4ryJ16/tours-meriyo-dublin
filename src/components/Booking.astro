@@ -1,0 +1,635 @@
+---
+interface Tour {
+  id: string;
+  name: string;
+  pricePerPerson: number;
+}
+
+const tours: Tour[] = [
+  { id: "casco-historico", name: "Casco Histórico", pricePerPerson: 12 },
+  { id: "vikinga-medieval", name: "Vikinga y Medieval", pricePerPerson: 12 },
+  { id: "trinity-literario", name: "Trinity y Rincones Literarios", pricePerPerson: 14 },
+];
+
+const startTimes = ["10:00", "11:30", "15:00", "17:30"];
+---
+
+<section class="booking" id="reserva">
+  <div class="wrap">
+    <p class="eyebrow booking__eyebrow">Reserva tu plaza</p>
+    <h1 class="booking__title">Vive Dublín a tu ritmo</h1>
+
+    <div class="booking__notice">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="9"/>
+        <line x1="12" y1="8" x2="12" y2="13"/>
+        <circle cx="12" cy="16.2" r="0.4" fill="currentColor" stroke="none"/>
+      </svg>
+      <p>
+        ¿Sois un grupo de más de 15 personas? Escríbenos a través del
+        <a href="#contacto">formulario de contacto</a> y te respondemos en menos de 24&nbsp;horas.
+      </p>
+    </div>
+
+    <div class="booking__grid">
+      <!-- ============ FORM COLUMN ============ -->
+      <form class="booking__form" id="booking-form">
+        <!-- 1. Tour details -->
+        <div class="booking__card">
+          <h2 class="booking__card-title"><span class="booking__num">01</span>El tour</h2>
+
+          <div class="field">
+            <label for="tour">Selecciona tu ruta<em>*</em></label>
+            <div class="select-wrap">
+              <select id="tour" name="tour" required>
+                {tours.map((t) => (
+                  <option value={t.id} data-price={t.pricePerPerson}>{t.name} — desde €{t.pricePerPerson}/persona</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div class="field-row">
+            <div class="field">
+              <label for="fecha">Fecha<em>*</em></label>
+              <input type="date" id="fecha" name="fecha" required />
+            </div>
+            <div class="field">
+              <label for="hora">Hora de inicio<em>*</em></label>
+              <div class="select-wrap">
+                <select id="hora" name="hora" required>
+                  {startTimes.map((h) => <option value={h}>{h}</option>)}
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div class="field-row">
+            <div class="field">
+              <label for="guests">Número de personas<em>*</em></label>
+              <div class="stepper">
+                <button type="button" class="stepper__btn" id="guests-minus" aria-label="Restar persona">−</button>
+                <input type="number" id="guests" name="guests" min="1" max="15" value="2" readonly />
+                <button type="button" class="stepper__btn" id="guests-plus" aria-label="Añadir persona">+</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. Your details -->
+        <div class="booking__card">
+          <h2 class="booking__card-title"><span class="booking__num">02</span>Tus datos</h2>
+
+          <div class="field-row">
+            <div class="field">
+              <label for="nombre">Nombre<em>*</em></label>
+              <input type="text" id="nombre" name="nombre" required />
+            </div>
+            <div class="field">
+              <label for="apellidos">Apellidos<em>*</em></label>
+              <input type="text" id="apellidos" name="apellidos" required />
+            </div>
+          </div>
+
+          <div class="field-row">
+            <div class="field">
+              <label for="email">Correo electrónico<em>*</em></label>
+              <input type="email" id="email" name="email" required />
+            </div>
+            <div class="field">
+              <label for="telefono">Teléfono <span class="field__optional">(opcional)</span></label>
+              <input type="tel" id="telefono" name="telefono" />
+            </div>
+          </div>
+        </div>
+
+        <!-- 3. Payment -->
+        <div class="booking__card">
+          <div class="booking__card-title-row">
+            <h2 class="booking__card-title"><span class="booking__num">03</span>Pago del depósito</h2>
+            <button type="button" class="why-verify" id="why-verify">
+              ¿Por qué pido esto?
+              <span class="why-verify__icon">?</span>
+            </button>
+          </div>
+
+          <div class="field">
+            <label for="titular">Nombre del titular<em>*</em></label>
+            <input type="text" id="titular" name="titular" required />
+          </div>
+
+          <div class="field">
+            <label for="tarjeta">Número de tarjeta<em>*</em></label>
+            <input type="text" id="tarjeta" name="tarjeta" inputmode="numeric" placeholder="•••• •••• •••• ••••" required />
+          </div>
+
+          <div class="field-row field-row--three">
+            <div class="field">
+              <label for="caducidad">Caducidad<em>*</em></label>
+              <input type="text" id="caducidad" name="caducidad" placeholder="MM/AA" required />
+            </div>
+            <div class="field">
+              <label for="cvv">CVV<em>*</em></label>
+              <input type="text" id="cvv" name="cvv" inputmode="numeric" maxlength="4" required />
+            </div>
+          </div>
+
+          <p id="why-verify-text" class="why-verify-text is-hidden">
+            El depósito reserva tu plaza y evita las ausencias de última hora, que dejan sitios vacíos
+            para quienes sí quieren venir. El resto del tour, como siempre, es guiado a cambio de propina libre.
+          </p>
+        </div>
+
+        <!-- 4. Final step -->
+        <div class="booking__card">
+          <h2 class="booking__card-title"><span class="booking__num">04</span>Último paso</h2>
+          <label class="checkbox-row">
+            <input type="checkbox" id="terminos" name="terminos" required />
+            <span>He leído y acepto las <a href="#terminos">Condiciones de reserva</a></span>
+          </label>
+          <p class="booking__fineprint">
+            Al confirmar, autorizas el cargo no reembolsable del depósito indicado en el resumen.
+            El resto del tour se abona directamente al guía, si así lo deseas.
+          </p>
+        </div>
+      </form>
+
+      <!-- ============ SUMMARY COLUMN ============ -->
+      <aside class="summary" aria-live="polite">
+        <div class="summary__inner">
+          <h2 class="summary__title">Resumen de tu reserva</h2>
+
+          <dl class="summary__list">
+            <div class="summary__row">
+              <dt>Ruta</dt>
+              <dd id="s-tour">Casco Histórico</dd>
+            </div>
+            <div class="summary__row">
+              <dt>Idioma</dt>
+              <dd id="s-idioma">Español</dd>
+            </div>
+            <div class="summary__row">
+              <dt>Fecha</dt>
+              <dd id="s-fecha">—</dd>
+            </div>
+            <div class="summary__row">
+              <dt>Hora</dt>
+              <dd id="s-hora">—</dd>
+            </div>
+            <div class="summary__row">
+              <dt>Personas</dt>
+              <dd id="s-guests">2</dd>
+            </div>
+          </dl>
+
+          <div class="summary__divider"></div>
+
+          <div class="summary__row summary__row--total">
+            <dt>Precio total</dt>
+            <dd id="s-total">€24.00</dd>
+          </div>
+          <div class="summary__row summary__row--payable">
+            <dt>Depósito a pagar ahora</dt>
+            <dd id="s-payable">€24.00</dd>
+          </div>
+
+          <button type="submit" form="booking-form" class="btn orange-btn summary__cta">
+            Confirmar reserva
+          </button>
+
+          <p class="summary__note">Pago seguro. El resto se abona el día del tour.</p>
+        </div>
+      </aside>
+    </div>
+  </div>
+</section>
+
+<style>
+  .booking {
+    background: var(--parchment);
+    padding-block: 56px 100px;
+  }
+
+  .booking__eyebrow { color: var(--russet); }
+
+  .booking__title {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: clamp(2rem, 3.6vw, 2.9rem);
+    margin: 10px 0 28px;
+    color: var(--ink);
+  }
+
+  .booking__notice {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    background: var(--forest-deep);
+    color: var(--parchment-alt);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 16px 20px;
+    margin-bottom: 40px;
+  }
+  .booking__notice svg { flex-shrink: 0; color: var(--gold); margin-top: 2px; }
+  .booking__notice p { margin: 0; font-size: 0.9rem; line-height: 1.55; }
+  .booking__notice a { color: var(--gold-soft); text-decoration: underline; }
+
+  .booking__grid {
+    display: grid;
+    grid-template-columns: 1fr 380px;
+    gap: 32px;
+    align-items: start;
+  }
+
+  .booking__form {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  .booking__card {
+    background: var(--cream);
+    border: 1px solid rgba(24, 34, 25, 0.1);
+    border-top: 3px solid var(--gold);
+    border-radius: var(--radius);
+    padding: 30px 30px 32px;
+  }
+
+  .booking__card-title-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .booking__card-title {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 1.25rem;
+    color: var(--ink);
+    margin: 0 0 22px;
+  }
+
+  .booking__num {
+    font-family: var(--font-body);
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    color: var(--gold);
+    border: 1px solid var(--line);
+    border-radius: 50%;
+    width: 26px;
+    height: 26px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .field { margin-bottom: 18px; }
+  .field:last-child { margin-bottom: 0; }
+
+  .field-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+  }
+  .field-row--three { grid-template-columns: 1fr 1fr; }
+
+  label {
+    display: block;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #4a5b4c;
+    margin-bottom: 7px;
+  }
+  label em {
+    font-style: normal;
+    color: var(--russet);
+    margin-left: 2px;
+  }
+  .field__optional {
+    font-weight: 400;
+    color: #8a8272;
+  }
+
+  input[type="text"],
+  input[type="email"],
+  input[type="tel"],
+  input[type="date"],
+  input[type="number"],
+  select {
+    width: 100%;
+    font-family: var(--font-body);
+    font-size: 0.95rem;
+    color: var(--ink);
+    background: var(--cream);
+    border: 1px solid rgba(24, 34, 25, 0.22);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+  input:focus, select:focus {
+    outline: none;
+    border-color: var(--gold);
+    box-shadow: 0 0 0 3px rgba(233, 151, 10, 0.16);
+  }
+
+  .select-wrap { position: relative; }
+  select { appearance: none; padding-right: 34px; cursor: pointer; }
+  .select-wrap::after {
+    content: "";
+    position: absolute;
+    right: 14px;
+    top: 50%;
+    width: 8px;
+    height: 8px;
+    border-right: 1.6px solid var(--russet);
+    border-bottom: 1.6px solid var(--russet);
+    transform: translateY(-70%) rotate(45deg);
+    pointer-events: none;
+  }
+
+  .stepper {
+    display: flex;
+    align-items: center;
+    border: 1px solid rgba(24, 34, 25, 0.22);
+    border-radius: var(--radius);
+    overflow: hidden;
+    width: fit-content;
+  }
+  .stepper__btn {
+    width: 40px;
+    height: 44px;
+    border: none;
+    background: var(--parchment-alt);
+    color: var(--ink);
+    font-size: 1.1rem;
+    cursor: pointer;
+    transition: background 0.2s ease;
+  }
+  .stepper__btn:hover { background: var(--gold-soft); }
+  .stepper input {
+    width: 56px;
+    height: 44px;
+    text-align: center;
+    border: none;
+    border-left: 1px solid rgba(24, 34, 25, 0.14);
+    border-right: 1px solid rgba(24, 34, 25, 0.14);
+    border-radius: 0;
+    background: var(--cream);
+  }
+
+  .option-card {
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+    padding: 16px 18px;
+    border: 1px solid rgba(24, 34, 25, 0.16);
+    border-radius: var(--radius);
+    cursor: pointer;
+    margin-bottom: 12px;
+    transition: border-color 0.2s ease, background 0.2s ease;
+  }
+  .option-card:last-child { margin-bottom: 0; }
+  .option-card:has(input:checked) {
+    border-color: var(--gold);
+    background: rgba(233, 151, 10, 0.06);
+  }
+  .option-card input { margin-top: 4px; accent-color: var(--gold); }
+  .option-card__body { flex: 1; }
+  .option-card__top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .option-card__name { font-family: var(--font-display); font-size: 1.02rem; color: var(--ink); }
+  .option-card__tag {
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--russet);
+    background: rgba(158, 73, 54, 0.1);
+    padding: 3px 8px;
+    border-radius: 20px;
+  }
+  .option-card__desc {
+    font-size: 0.85rem;
+    line-height: 1.5;
+    color: #5a6b5c;
+    margin: 6px 0 0;
+  }
+
+  .why-verify {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--ink);
+    background: var(--parchment-alt);
+    border: 1px solid rgba(24, 34, 25, 0.16);
+    border-radius: 20px;
+    padding: 7px 14px 7px 16px;
+    cursor: pointer;
+  }
+  .why-verify__icon {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--forest-deep);
+    color: var(--gold-soft);
+    font-size: 0.68rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .why-verify-text {
+    margin-top: 16px;
+    font-size: 0.83rem;
+    line-height: 1.55;
+    color: #5a6b5c;
+    background: var(--parchment-alt);
+    border-left: 3px solid var(--gold);
+    padding: 12px 16px;
+    border-radius: var(--radius);
+  }
+  .why-verify-text.is-hidden { display: none; }
+
+  .checkbox-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    font-size: 0.92rem;
+    color: var(--ink);
+    margin-bottom: 12px;
+    cursor: pointer;
+  }
+  .checkbox-row input { margin-top: 3px; accent-color: var(--gold); }
+  .checkbox-row a { color: var(--russet); text-decoration: underline; }
+
+  .booking__fineprint {
+    font-size: 0.8rem;
+    line-height: 1.55;
+    color: #7a7562;
+    margin: 0;
+  }
+
+  /* ---------- Summary ---------- */
+  .summary {
+    position: sticky;
+    top: 96px;
+  }
+  .summary__inner {
+    background: var(--forest-deep);
+    color: var(--parchment-alt);
+    border-radius: var(--radius);
+    border: 1px solid var(--line);
+    padding: 30px 28px;
+  }
+  .summary__title {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-weight: 600;
+    font-size: 1.2rem;
+    color: var(--cream);
+    margin: 0 0 20px;
+  }
+  .summary__list { margin: 0; }
+  .summary__row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: 0.88rem;
+    padding: 9px 0;
+    border-bottom: 1px dashed rgba(242, 234, 215, 0.16);
+  }
+  .summary__row dt { color: rgba(242, 234, 215, 0.65); margin: 0; font-weight: 400; }
+  .summary__row dd { margin: 0; color: var(--cream); font-weight: 500; text-align: right; }
+
+  .summary__divider {
+    height: 1px;
+    background: rgba(242, 234, 215, 0.16);
+    margin: 18px 0;
+  }
+
+  .summary__row--total dt,
+  .summary__row--total dd {
+    font-weight: 600;
+    color: var(--cream);
+    border: none;
+  }
+  .summary__row--total { border: none; padding-top: 0; }
+
+  .summary__row--payable {
+    border: none;
+    padding-top: 6px;
+  }
+  .summary__row--payable dt { color: var(--gold-soft); font-weight: 600; }
+  .summary__row--payable dd {
+    color: var(--gold);
+    font-family: var(--font-display);
+    font-size: 1.35rem;
+    font-weight: 600;
+  }
+
+  .summary__cta {
+    width: 100%;
+    justify-content: center;
+    margin-top: 22px;
+    font-size: 0.95rem;
+  }
+
+  .summary__note {
+    text-align: center;
+    font-size: 0.74rem;
+    color: rgba(242, 234, 215, 0.55);
+    margin: 12px 0 0;
+  }
+
+  @media (max-width: 980px) {
+    .booking__grid { grid-template-columns: 1fr; }
+    .summary { position: static; }
+  }
+
+  @media (max-width: 640px) {
+    .field-row, .field-row--three { grid-template-columns: 1fr; }
+    .booking__card { padding: 24px 20px 26px; }
+  }
+</style>
+
+<script>
+  const form = document.getElementById('booking-form') as HTMLFormElement;
+
+  const tourSelect = document.getElementById('tour') as HTMLSelectElement;
+  const idiomaSelect = document.getElementById('idioma') as HTMLSelectElement;
+  const fechaInput = document.getElementById('fecha') as HTMLInputElement;
+  const horaSelect = document.getElementById('hora') as HTMLSelectElement;
+  const guestsInput = document.getElementById('guests') as HTMLInputElement;
+  const guestsMinus = document.getElementById('guests-minus') as HTMLButtonElement;
+  const guestsPlus = document.getElementById('guests-plus') as HTMLButtonElement;
+
+  const sTour = document.getElementById('s-tour')!;
+  const sIdioma = document.getElementById('s-idioma')!;
+  const sFecha = document.getElementById('s-fecha')!;
+  const sHora = document.getElementById('s-hora')!;
+  const sGuests = document.getElementById('s-guests')!;
+  const sTotal = document.getElementById('s-total')!;
+  const sPayable = document.getElementById('s-payable')!;
+
+  const formatDate = (value: string) => {
+    if (!value) return '—';
+    const d = new Date(value + 'T00:00:00');
+    return d.toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' });
+  };
+
+  const formatMoney = (n: number) => `€${n.toFixed(2)}`;
+
+  function updateSummary() {
+    const selectedOption = tourSelect.selectedOptions[0];
+    const price = Number(selectedOption?.dataset.price ?? 0);
+    const guests = Number(guestsInput.value || 1);
+    const total = price * guests;
+
+    sTour.textContent = selectedOption?.textContent?.split(' — ')[0] ?? '';
+    sIdioma.textContent = idiomaSelect.value;
+    sFecha.textContent = formatDate(fechaInput.value);
+    sHora.textContent = horaSelect.value || '—';
+    sGuests.textContent = String(guests);
+    sTotal.textContent = formatMoney(total);
+    sPayable.textContent = formatMoney(total);
+  }
+
+  guestsMinus.addEventListener('click', () => {
+    const v = Math.max(1, Number(guestsInput.value) - 1);
+    guestsInput.value = String(v);
+    updateSummary();
+  });
+  guestsPlus.addEventListener('click', () => {
+    const v = Math.min(15, Number(guestsInput.value) + 1);
+    guestsInput.value = String(v);
+    updateSummary();
+  });
+
+  [tourSelect, idiomaSelect, fechaInput, horaSelect].forEach((el) =>
+    el.addEventListener('change', updateSummary)
+  );
+
+  const whyBtn = document.getElementById('why-verify');
+  const whyText = document.getElementById('why-verify-text');
+  whyBtn?.addEventListener('click', () => whyText?.classList.toggle('is-hidden'));
+
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const emailA = (document.getElementById('email') as HTMLInputElement).value;
+    const emailB = (document.getElementById('email-confirm') as HTMLInputElement).value;
+    if (emailA !== emailB) {
+      alert('Los correos electrónicos no coinciden.');
+      return;
+    }
+    alert('¡Reserva confirmada! (Conecta este formulario a tu pasarela de pago para procesar cobros reales.)');
+  });
+
+  updateSummary();
+</script>
