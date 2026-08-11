@@ -23,7 +23,7 @@ const advantages = [
 
     <div class="hero__art">
       <ul class="hero__advantages">
-        <li class="hero__advantages-title">Ventajas</li>
+        <li class="hero__advantages-title">Ventajas —</li>
         {advantages.map((v) => (
           <li>
             <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="var(--gold)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -50,10 +50,10 @@ const advantages = [
     display: flex;
     align-items: center;
     background-image: 
-      linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.164)), 
+      linear-gradient(rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.4)), 
       url('/public/images/v-animal.jpeg');
     background-size: cover;
-    background-position: center;
+    background-position:  center;
     background-repeat: no-repeat;
     color: var(--cream);
     padding-block: 72px 96px;
@@ -127,6 +127,12 @@ const advantages = [
     font-size: 0.88rem;
     color: var(--parchment-alt);
     padding: 5px 0;
+  }
+
+  @media (min-width: 901px) {
+    .hero__advantages {
+      transform: translateY(160px);
+    }
   }
 
   @media (max-width: 900px) {

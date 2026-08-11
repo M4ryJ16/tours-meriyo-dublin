@@ -101,7 +101,6 @@ a { color: inherit; text-decoration: none; }
   background: var(--gold);
   color: var(--ink);
 }
-.btn-solid:hover { background: var(--gold-soft); transform: translateY(-1px); }
 
 .btn-ghost {
   background: transparent;

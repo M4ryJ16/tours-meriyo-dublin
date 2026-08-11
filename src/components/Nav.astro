@@ -1,8 +1,8 @@
 ---
 const links = [
-  { href: "#excursiones", label: "Excursiones" },
-  { href: "/blog", label: "Blog" },
-  { href: "#sobre-mi", label: "Sobre Mí" },
+  { href: "/#excursiones", label: "Excursiones" },
+  { href: "/proximamente", label: "Blog" },
+  { href: "/#sobre-mi", label: "Sobre Mí" },
 ];
 ---
 
@@ -10,20 +10,25 @@ const links = [
   <div class="wrap nav__row">
     <div class="nav__social" aria-label="Redes sociales">
       <a href="https://instagram.com" aria-label="Instagram" class="nav__icon">
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6">
+        <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.6">
           <rect x="3" y="3" width="18" height="18" rx="5"/>
           <circle cx="12" cy="12" r="4.2"/>
           <circle cx="17.3" cy="6.7" r="0.9" fill="currentColor" stroke="none"/>
         </svg>
       </a>
       <a href="https://tiktok.com" aria-label="TikTok" class="nav__icon">
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+        <svg viewBox="0 0 24 24" width="32" height="32" fill="currentColor">
           <path d="M14.5 3h2.6c.2 1.6 1.2 3 2.8 3.6v2.7c-1.4 0-2.8-.4-3.9-1.2v6.6c0 3-2.4 5.3-5.4 5.3S5.2 17.7 5.2 14.7c0-2.9 2.3-5.2 5.2-5.3v2.8c-1.3.1-2.4 1.2-2.4 2.5 0 1.4 1.2 2.5 2.6 2.5s2.6-1.1 2.6-2.5V3z"/>
         </svg>
       </a>
       <a href="https://facebook.com" aria-label="Facebook" class="nav__icon">
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+        <svg viewBox="0 0 24 24" width="32" height="32" fill="currentColor">
           <path d="M13.5 21v-7.6h2.6l.4-3h-3v-1.9c0-.9.2-1.5 1.5-1.5h1.6V4.3C15.9 4.2 15 4.1 14 4.1c-2.3 0-3.9 1.4-3.9 4v2.3H7.5v3H10V21h3.5z"/>
+        </svg>
+      </a>
+      <a href="https://x.com" aria-label="X (Twitter)" class="nav__icon">
+        <svg viewBox="0 0 24 24" width="29" height="29" fill="currentColor">
+          <path d="M18.9 3h3.1l-6.8 7.7L23.2 21h-6.3l-4.9-6.4L6.3 21H3.2l7.2-8.3L2.8 3h6.4l4.5 5.9L18.9 3zm-1.1 16.2h1.7L7.3 4.7H5.5l12.3 14.5z"/>
         </svg>
       </a>
     </div>
@@ -70,6 +75,7 @@ const links = [
 
   .nav__social {
     display: flex;
+    align-items: center;
     gap: 12px;
     order: 1;
   }
@@ -84,6 +90,7 @@ const links = [
     display: flex;
     align-items: baseline;
     align-items: center;
+    margin-left: 40px;
     gap: 8px;
     font-family: var(--font-display);
     font-size: 1.15rem;
@@ -136,7 +143,11 @@ const links = [
     padding: 4px;
   }
 
-  @media (max-width: 860px) {
+  @media (max-width: 1000px) {
+    .nav__logo {
+      margin-left: 0px;
+    }
+
     .nav__links {
       position: absolute;
       top: 100%;

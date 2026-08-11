@@ -19,18 +19,6 @@ const startTimes = ["10:00", "11:30", "15:00", "17:30"];
     <p class="eyebrow booking__eyebrow">Reserva tu plaza</p>
     <h1 class="booking__title">Vive Dublín a tu ritmo</h1>
 
-    <div class="booking__notice">
-      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="12" cy="12" r="9"/>
-        <line x1="12" y1="8" x2="12" y2="13"/>
-        <circle cx="12" cy="16.2" r="0.4" fill="currentColor" stroke="none"/>
-      </svg>
-      <p>
-        ¿Sois un grupo de más de 15 personas? Escríbenos a través del
-        <a href="#contacto">formulario de contacto</a> y te respondemos en menos de 24&nbsp;horas.
-      </p>
-    </div>
-
     <div class="booking__grid">
       <!-- ============ FORM COLUMN ============ -->
       <form class="booking__form" id="booking-form">
@@ -563,7 +551,6 @@ const startTimes = ["10:00", "11:30", "15:00", "17:30"];
   const form = document.getElementById('booking-form') as HTMLFormElement;
 
   const tourSelect = document.getElementById('tour') as HTMLSelectElement;
-  const idiomaSelect = document.getElementById('idioma') as HTMLSelectElement;
   const fechaInput = document.getElementById('fecha') as HTMLInputElement;
   const horaSelect = document.getElementById('hora') as HTMLSelectElement;
   const guestsInput = document.getElementById('guests') as HTMLInputElement;
@@ -571,7 +558,6 @@ const startTimes = ["10:00", "11:30", "15:00", "17:30"];
   const guestsPlus = document.getElementById('guests-plus') as HTMLButtonElement;
 
   const sTour = document.getElementById('s-tour')!;
-  const sIdioma = document.getElementById('s-idioma')!;
   const sFecha = document.getElementById('s-fecha')!;
   const sHora = document.getElementById('s-hora')!;
   const sGuests = document.getElementById('s-guests')!;
@@ -593,7 +579,6 @@ const startTimes = ["10:00", "11:30", "15:00", "17:30"];
     const total = price * guests;
 
     sTour.textContent = selectedOption?.textContent?.split(' — ')[0] ?? '';
-    sIdioma.textContent = idiomaSelect.value;
     sFecha.textContent = formatDate(fechaInput.value);
     sHora.textContent = horaSelect.value || '—';
     sGuests.textContent = String(guests);
@@ -612,7 +597,7 @@ const startTimes = ["10:00", "11:30", "15:00", "17:30"];
     updateSummary();
   });
 
-  [tourSelect, idiomaSelect, fechaInput, horaSelect].forEach((el) =>
+  [tourSelect, fechaInput, horaSelect].forEach((el) =>
     el.addEventListener('change', updateSummary)
   );
 
@@ -622,12 +607,6 @@ const startTimes = ["10:00", "11:30", "15:00", "17:30"];
 
   form.addEventListener('submit', (e) => {
     e.preventDefault();
-    const emailA = (document.getElementById('email') as HTMLInputElement).value;
-    const emailB = (document.getElementById('email-confirm') as HTMLInputElement).value;
-    if (emailA !== emailB) {
-      alert('Los correos electrónicos no coinciden.');
-      return;
-    }
     alert('¡Reserva confirmada! (Conecta este formulario a tu pasarela de pago para procesar cobros reales.)');
   });
 
