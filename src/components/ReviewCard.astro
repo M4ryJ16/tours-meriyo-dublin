@@ -34,7 +34,7 @@ const { content, stars, customerName, tourName } = Astro.props;
   {tourName && <p class="review-card__reviewer"><span>— {tourName}</span></p>}
 </div>
 
-<style>
+<style is:global>
   .review-card {
     border: 1px dashed black;
     padding: 20px;

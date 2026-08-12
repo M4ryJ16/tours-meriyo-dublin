@@ -187,3 +187,10 @@ export function getCurrentCustomer(token) {
     headers: { Authorization: `Bearer ${token}` }
   });
 }
+
+export function createReview(tourId, data) {
+  return apiFetch(`/tours/${tourId}/reviews`, {
+    method: 'POST',
+    body: JSON.stringify(data)
+  });
+}
