@@ -6,7 +6,7 @@ import { getSessionToken, clearSessionCookie } from "@/lib/session.js";
 
 export const prerender = false;
 
-const redirectTo = Astro.url.searchParams.get("redirect") || "/";
+const redirectTo = "/cuenta-creada";
 
 const token = getSessionToken(Astro.cookies);
 if (token) {

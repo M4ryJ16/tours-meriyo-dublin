@@ -6,7 +6,7 @@ import { getSessionToken, clearSessionCookie } from "@/lib/session.js";
 
 export const prerender = false;
 
-const redirectTo = Astro.url.searchParams.get("redirect") || "/";
+const redirectTo = "/sesion-iniciada";
 const prefillEmail = Astro.url.searchParams.get("email") || "";
 
 const token = getSessionToken(Astro.cookies);
