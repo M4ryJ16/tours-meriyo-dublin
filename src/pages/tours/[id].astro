@@ -1,0 +1,259 @@
+---
+import Nav from "@/components/Nav.astro";
+import ReviewCard from "@/components/ReviewCard.astro";
+import { ApiError, getTour, getAllTourReviews, getTourReviewSummary } from "@/lib/api.js";
+
+export const prerender = false;
+
+const { id } = Astro.params;
+
+let tour: any = null;
+
+try {
+  tour = await getTour(id as string);
+} catch (err) {
+  if (err instanceof ApiError && err.status === 404) {
+    return Astro.redirect('/404');
+  }
+  throw err;
+}
+
+if (!tour.is_active) {
+  return Astro.redirect('/404');
+}
+
+interface ApiReview {
+  id: string;
+  stars: number;
+  content: string | null;
+  tour_id: string;
+  customer_id: string;
+  created_at: string;
+  tour_name: string;
+  customer_name: string;
+}
+
+interface ReviewSummary {
+  tourId: string;
+  reviewCount: number;
+  averageStars: number;
+  breakdown: Record<string, number>;
+}
+
+let reviews: ApiReview[] = [];
+let summary: ReviewSummary | null = null;
+let reviewsError = false;
+
+try {
+  [reviews, summary] = await Promise.all([
+    getAllTourReviews(tour.id),
+    getTourReviewSummary(tour.id)
+  ]);
+} catch (err) {
+  console.error('Failed to load reviews for this tour', err);
+  reviewsError = true;
+}
+---
+
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{tour.name} — Tours Meriyo Dublín</title>
+    <link rel="icon" href="/public/web-icon-orange.svg" />
+    <meta name="description" content={tour.description} />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,500;0,600;1,500;1,600&family=Work+Sans:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/src/styles/global.css" />
+  </head>
+  <body>
+    <Nav />
+    <main>
+      <section class="tour-detail">
+        <div class="wrap tour-detail__inner">
+          <p class="eyebrow">Excursión</p>
+          <h1 class="tour-detail__title">{tour.name}</h1>
+          <p class="tour-detail__price">Desde {Number(tour.price).toFixed(2)} {tour.currency} / persona</p>
+          <p class="tour-detail__desc">{tour.description}</p>
+
+          <div class="tour-detail__meta">
+            {tour.duration_hours && <span>{tour.duration_hours}h de duración</span>}
+            {tour.capacity && <span>Hasta {tour.capacity} personas</span>}
+            {summary && summary.reviewCount > 0 && (
+              <span>★ {summary.averageStars.toFixed(1)} ({summary.reviewCount} {summary.reviewCount === 1 ? 'reseña' : 'reseñas'})</span>
+            )}
+          </div>
+
+          <a href={`/reservar?tour=${tour.id}`} class="btn orange-btn rounded-btn">Reservar esta ruta</a>
+
+          {tour.gallery?.length > 0 && (
+            <div class="tour-detail__gallery">
+              {tour.gallery.map((img: any) => (
+                <img src={img.url} alt={img.alt ?? tour.name} loading="lazy" />
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
+
+      <section class="tour-reviews">
+        <div class="wrap">
+          <p class="eyebrow">Reseñas</p>
+          <h2 class="tour-reviews__title">Opiniones de esta ruta</h2>
+
+          {reviewsError && (
+            <p class="tour-reviews__notice">
+              No hemos podido cargar las reseñas en este momento. Inténtalo de nuevo más tarde.
+            </p>
+          )}
+
+          {!reviewsError && reviews.length === 0 && (
+            <p class="tour-reviews__notice">Todavía no hay reseñas para esta ruta.</p>
+          )}
+
+          {!reviewsError && reviews.length > 0 && (
+            <div class="tour-reviews__grid">
+              {reviews.map((r) => (
+                <ReviewCard content={r.content} stars={r.stars} customerName={r.customer_name} />
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer" id="sobre-mi">
+      <div class="wrap site-footer__row">
+        <div>
+          <p class="site-footer__logo">Tours <em>Meriyo</em> Dublín</p>
+          <p class="site-footer__text">
+            Guías locales, grupos reducidos y el Dublín que no sale en las
+            postales. Free tours a diario, con reserva anticipada.
+          </p>
+        </div>
+        <p class="site-footer__copy">© {new Date().getFullYear()} Tours Meriyo Dublín</p>
+      </div>
+    </footer>
+  </body>
+</html>
+
+<style is:global>
+  .tour-detail {
+    background: var(--parchment);
+    padding-block: 64px 60px;
+  }
+  .tour-detail__inner { max-width: 760px; }
+  .tour-detail__title {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: clamp(2rem, 3.6vw, 2.9rem);
+    color: var(--ink);
+    margin: 10px 0 12px;
+  }
+  .tour-detail__price {
+    font-family: var(--font-display);
+    font-style: italic;
+    color: var(--russet);
+    font-size: 1.1rem;
+    margin: 0 0 22px;
+  }
+  .tour-detail__desc {
+    font-size: 1rem;
+    line-height: 1.7;
+    color: #3c4a3d;
+    margin: 0 0 22px;
+  }
+  .tour-detail__meta {
+    display: flex;
+    gap: 18px;
+    flex-wrap: wrap;
+    font-size: 0.85rem;
+    color: #5a6b5c;
+    margin: 0 0 28px;
+  }
+  .tour-detail__gallery {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 14px;
+    margin-top: 40px;
+  }
+  .tour-detail__gallery img {
+    width: 100%;
+    height: 160px;
+    object-fit: cover;
+    border-radius: var(--radius);
+    border: 1px solid rgba(24, 34, 25, 0.1);
+  }
+
+  .tour-reviews {
+    background: var(--parchment);
+    padding-block: 20px 100px;
+  }
+  .tour-reviews__title {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: clamp(1.7rem, 3vw, 2.2rem);
+    margin: 10px 0 30px;
+    color: var(--ink);
+  }
+  .tour-reviews__notice {
+    font-size: 0.95rem;
+    color: #5a6b5c;
+    background: var(--cream);
+    border: 1px solid rgba(24, 34, 25, 0.12);
+    border-radius: var(--radius);
+    padding: 16px 20px;
+    margin: 0;
+  }
+  .tour-reviews__grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 22px;
+  }
+
+  @media (max-width: 940px) {
+    .tour-reviews__grid { grid-template-columns: 1fr 1fr; }
+  }
+  @media (max-width: 640px) {
+    .tour-reviews__grid { grid-template-columns: 1fr; }
+  }
+
+  .site-footer {
+    background: var(--forest-deep);
+    color: var(--parchment-alt);
+    padding-block: 40px;
+    border-top: 1px solid var(--line);
+  }
+  .site-footer__row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+  .site-footer__logo {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-size: 1.05rem;
+    color: var(--cream);
+    margin: 0 0 8px;
+  }
+  .site-footer__logo em { color: var(--gold); }
+  .site-footer__text {
+    max-width: 46ch;
+    font-size: 0.85rem;
+    line-height: 1.6;
+    color: var(--parchment-alt);
+    margin: 0;
+  }
+  .site-footer__copy {
+    font-size: 0.78rem;
+    color: rgba(242, 234, 215, 0.6);
+    margin: 0;
+  }
+</style>

@@ -1,0 +1,217 @@
+---
+import Nav from "@/components/Nav.astro";
+import { ApiError, getBooking } from "@/lib/api.js";
+
+export const prerender = false;
+
+const bookingId = Astro.url.searchParams.get("booking");
+
+let booking: any = null;
+let error: string | null = null;
+
+if (bookingId) {
+  try {
+    booking = await getBooking(bookingId);
+  } catch (err) {
+    error =
+      err instanceof ApiError && err.status === 404
+        ? "No hemos encontrado esa reserva."
+        : "No hemos podido recuperar los datos de tu reserva.";
+  }
+} else {
+  error = "Falta el identificador de la reserva.";
+}
+
+const statusLabels: Record<string, string> = {
+  pending: "Pendiente",
+  confirmed: "Confirmada",
+  cancelled: "Cancelada",
+  completed: "Completada",
+  refunded: "Reembolsada"
+};
+
+const formatDate = (value: string) =>
+  new Date(value).toLocaleDateString("es-ES", { day: "numeric", month: "long", year: "numeric" });
+
+// booking.departure_time comes back as "HH:MM:SS" — trim the seconds.
+const formatTime = (value: string) => value?.slice(0, 5) ?? value;
+---
+
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Reserva confirmada — Tours Meriyo Dublín</title>
+    <link rel="icon" href="/public/web-icon-orange.svg" />
+    <meta name="robots" content="noindex" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,500;0,600;1,500;1,600&family=Work+Sans:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/src/styles/global.css" />
+  </head>
+  <body>
+    <Nav />
+    <main>
+      <section class="confirm">
+        <div class="wrap confirm__inner">
+          {error ? (
+            <>
+              <p class="eyebrow confirm__eyebrow">Vaya</p>
+              <h1 class="confirm__title">{error}</h1>
+              <div class="confirm__actions">
+                <a href="/reservar" class="btn orange-btn rounded-btn">Volver a reservar</a>
+              </div>
+            </>
+          ) : (
+            <>
+              <p class="eyebrow confirm__eyebrow">¡Todo listo!</p>
+              <h1 class="confirm__title">Reserva confirmada</h1>
+              <p class="confirm__text">
+                Hemos guardado tu reserva. Te esperamos en el punto de encuentro el día de la excursión.
+              </p>
+
+              <dl class="confirm__list">
+                <div class="confirm__row">
+                  <dt>Ruta</dt>
+                  <dd>{booking.tour_name}</dd>
+                </div>
+                <div class="confirm__row">
+                  <dt>Fecha</dt>
+                  <dd>{formatDate(booking.tour_date)}</dd>
+                </div>
+                {booking.departure_time && (
+                  <div class="confirm__row">
+                    <dt>Hora</dt>
+                    <dd>{formatTime(booking.departure_time)}</dd>
+                  </div>
+                )}
+                <div class="confirm__row">
+                  <dt>Personas</dt>
+                  <dd>{booking.quantity}</dd>
+                </div>
+                <div class="confirm__row">
+                  <dt>Estado</dt>
+                  <dd>{statusLabels[booking.status] ?? booking.status}</dd>
+                </div>
+                <div class="confirm__row">
+                  <dt>A nombre de</dt>
+                  <dd>{booking.customer_name} ({booking.customer_email})</dd>
+                </div>
+              </dl>
+
+              <div class="confirm__actions">
+                <a href="/" class="btn orange-btn rounded-btn">Volver al inicio</a>
+              </div>
+            </>
+          )}
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer" id="sobre-mi">
+      <div class="wrap site-footer__row">
+        <div>
+          <p class="site-footer__logo">Tours <em>Meriyo</em> Dublín</p>
+          <p class="site-footer__text">
+            Guías locales, grupos reducidos y el Dublín que no sale en las
+            postales. Free tours a diario, con reserva anticipada.
+          </p>
+        </div>
+        <p class="site-footer__copy">© {new Date().getFullYear()} Tours Meriyo Dublín</p>
+      </div>
+    </footer>
+  </body>
+</html>
+
+<style is:global>
+  .confirm {
+    min-height: 72vh;
+    display: flex;
+    align-items: center;
+    background: var(--forest-deep);
+    color: var(--parchment-alt);
+  }
+  .confirm__inner {
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding-block: 80px;
+  }
+  .confirm__eyebrow { color: var(--gold-soft); }
+  .confirm__title {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-weight: 600;
+    font-size: clamp(2.2rem, 4.6vw, 3.4rem);
+    line-height: 1.1;
+    color: var(--cream);
+    margin: 16px 0 20px;
+  }
+  .confirm__text {
+    max-width: 46ch;
+    font-size: 1rem;
+    line-height: 1.65;
+    margin: 0 0 32px;
+  }
+  .confirm__list {
+    width: 100%;
+    max-width: 420px;
+    text-align: left;
+    background: rgba(242, 234, 215, 0.06);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 20px 24px;
+    margin: 0 0 32px;
+  }
+  .confirm__row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 9px 0;
+    border-bottom: 1px dashed rgba(242, 234, 215, 0.16);
+    font-size: 0.9rem;
+  }
+  .confirm__row:last-child { border-bottom: none; }
+  .confirm__row dt { color: rgba(242, 234, 215, 0.65); margin: 0; }
+  .confirm__row dd { margin: 0; color: var(--cream); font-weight: 500; text-align: right; }
+  .confirm__actions { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; }
+
+  .site-footer {
+    background: var(--forest-deep);
+    color: var(--parchment-alt);
+    padding-block: 40px;
+    border-top: 1px solid var(--line);
+  }
+  .site-footer__row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+  .site-footer__logo {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-size: 1.05rem;
+    color: var(--cream);
+    margin: 0 0 8px;
+  }
+  .site-footer__logo em { color: var(--gold); }
+  .site-footer__text {
+    max-width: 46ch;
+    font-size: 0.85rem;
+    line-height: 1.6;
+    color: var(--parchment-alt);
+    margin: 0;
+  }
+  .site-footer__copy {
+    font-size: 0.78rem;
+    color: rgba(242, 234, 215, 0.6);
+    margin: 0;
+  }
+</style>

@@ -1,53 +1,67 @@
 ---
-interface Review {
-  text: string;
+import { getTourGallery, getTours, getRandomReviews } from "@/lib/api.js";
+import ReviewCard from "@/components/ReviewCard.astro";
+
+interface ApiTour {
+  id: string;
   name: string;
-  origin: string;
+  description: string;
+  price: string;
+  currency: string;
+  duration_hours: number | null;
+  capacity: number | null;
+  is_active: boolean;
 }
 
-interface Tour {
-  name: string;
-  desc: string;
-  icon: string;
-  image: string;
-  review: Review;
+interface TourWithCover extends ApiTour {
+  cover: string | null;
 }
 
-const tours: Tour[] = [
-  {
-    name: "Casco Histórico",
-    desc: "Del Castillo de Dublín a Temple Bar: la ciudad medieval, sus leyendas vikingas y los rincones que la mayoría se salta.",
-    icon: "castle",
-    image: "https://commons.wikimedia.org/wiki/Special:FilePath/Dublin_Castle_Record_Tower_01.JPG?width=900",
-    review: {
-      text: "Nuestra guía conocía cada callejón y cada historia. Se nota el cariño por la ciudad — el mejor free tour que hemos hecho en Europa.",
-      name: "Marta G.",
-      origin: "Sevilla, España",
-    },
-  },
-  {
-    name: "Vikinga y Medieval",
-    desc: "Sigue el rastro de los fundadores nórdicos de Dublín, desde la Christ Church hasta las murallas que aún respiran bajo la ciudad.",
-    icon: "longship",
-    image: "https://commons.wikimedia.org/wiki/Special:FilePath/Christ_Church_Cathedral,_Dublin_exterior.jpg?width=900",
-    review: {
-      text: "Ritmo pausado, grupo pequeño y anécdotas que no salen en las guías. Volvería a repetir sin dudarlo.",
-      name: "Tomás R.",
-      origin: "Ciudad de México",
-    },
-  },
-  {
-    name: "Trinity y Rincones Literarios",
-    desc: "Un paseo por el Dublín de Joyce y Wilde: patios centenarios, librerías escondidas y la biblioteca que enamora a cualquiera.",
-    icon: "book",
-    image: "https://commons.wikimedia.org/wiki/Special:FilePath/Long_Room_Interior,_Trinity_College_Dublin,_Ireland_-_Diliff.jpg?width=900",
-    review: {
-      text: "Como amante de la literatura, esta ruta fue un regalo. La pasión del guía por Dublín se contagia enseguida.",
-      name: "Aoife & Liam",
-      origin: "Cork, Irlanda",
-    },
-  },
-];
+interface ApiReview {
+  id: string;
+  stars: number;
+  content: string | null;
+  tour_id: string;
+  customer_id: string;
+  created_at: string;
+  tour_name: string;
+  customer_name: string;
+}
+
+let tours: TourWithCover[] = [];
+let loadError = false;
+
+try {
+  const activeTours: ApiTour[] = await getTours({ active: true });
+  tours = await Promise.all(
+    activeTours.map(async (t) => {
+      try {
+        const gallery = await getTourGallery(t.id);
+        
+        return { ...t, cover: gallery[0]?.url ?? null };
+      } catch {
+        // A missing gallery shouldn't take down the whole grid — just show
+        // this one card without a photo.
+        return { ...t, cover: null };
+      }
+    })
+  );
+} catch (err) {
+  console.error('Failed to load tours from the API', err);
+  loadError = true;
+}
+
+// A small, rotating sample of reviews across the whole catalog — the full
+// list for a given tour lives on that tour's own page instead.
+let reviews: ApiReview[] = [];
+let reviewsError = false;
+
+try {
+  reviews = await getRandomReviews({ count: 5 });
+} catch (err) {
+  console.error('Failed to load reviews from the API', err);
+  reviewsError = true;
+}
 ---
 
 <section class="tours" id="excursiones">
@@ -55,37 +69,66 @@ const tours: Tour[] = [
     <p class="eyebrow tours__eyebrow">Nuestras rutas</p>
     <h2 class="tours__title">Vive Dublín a pie</h2>
 
+    {loadError && (
+      <p class="tours__notice">
+        No hemos podido cargar las excursiones en este momento. Inténtalo de nuevo más tarde.
+      </p>
+    )}
+
+    {!loadError && tours.length === 0 && (
+      <p class="tours__notice">Todavía no hay excursiones publicadas.</p>
+    )}
+
     <div class="tours__grid" id="opiniones">
       {tours.map((t) => (
         <article class="card reveal" tabindex="0">
-          <!-- Front face: photo with title burned into the image -->
-          <div class="card__media" style={`background-image:url(${t.image})`}>
+          <div
+            class={`card__media${t.cover ? '' : ' card__media--empty'}`}
+            style={t.cover ? `background-image:url(${t.cover})` : undefined}
+          >
             <div class="card__media-scrim"></div>
             <h3 class="card__media-title">{t.name}</h3>
             <span class="card__hint">Pasa el cursor para ver más</span>
           </div>
 
-          <!-- Back face: full info shown on hover / focus -->
           <div class="card__overlay">
             <h3 class="card__name">{t.name}</h3>
-            <p class="card__desc">{t.desc}</p>
+            <p class="card__desc">{t.description}</p>
+            <p class="card__price">Desde {Number(t.price).toFixed(2)} {t.currency} / persona</p>
 
-            <a href="/reservar"><button class="btn orange-btn">RESERVAR</button></a>
-
-            <div class="card__review">
-              <div class="card__stars" aria-label="5 de 5 estrellas">
-                {Array.from({ length: 5 }).map(() => (
-                  <svg viewBox="0 0 20 20" width="13" height="13" fill="var(--gold)">
-                    <path d="M10 1.5l2.6 5.6 6.1.6-4.6 4.1 1.3 6-5.4-3.1-5.4 3.1 1.3-6-4.6-4.1 6.1-.6L10 1.5Z"/>
-                  </svg>
-                ))}
-              </div>
-              <p class="card__quote">&ldquo;{t.review.text}&rdquo;</p>
-              <p class="card__reviewer">{t.review.name} <span>— {t.review.origin}</span></p>
+            <div class="card__actions">
+              <a href={`/tours/${t.id}`}><button class="btn btn-ghost black-color-05">VER RUTA</button></a>
+              <a href={`/reservar?tour=${t.id}`}><button class="btn orange-btn">RESERVAR</button></a>
             </div>
           </div>
         </article>
       ))}
+    </div>
+
+    <div id="reviews-section" class="space-top">
+      <p class="eyebrow tours__eyebrow">Reseñas</p>
+      <h2 class="tours__title">Mira lo que piensan otros turistas</h2>
+
+      {reviewsError && (
+        <p class="tours__notice">
+          No hemos podido cargar las reseñas en este momento. Inténtalo de nuevo más tarde.
+        </p>
+      )}
+
+      {!reviewsError && reviews.length === 0 && (
+        <p class="tours__notice">Todavía no hay reseñas publicadas.</p>
+      )}
+
+      <div class="tours__grid" id="reviews">
+        {reviews.map((r) => (
+          <ReviewCard
+            content={r.content}
+            stars={r.stars}
+            customerName={r.customer_name}
+            tourName={r.tour_name}
+          />
+        ))}
+      </div>
     </div>
   </div>
 </section>
@@ -96,6 +139,8 @@ const tours: Tour[] = [
     padding-block: 90px 100px;
   }
 
+  .space-top { margin-top: 60px; }
+
   .tours__eyebrow { color: var(--russet); }
 
   .tours__title {
@@ -104,6 +149,20 @@ const tours: Tour[] = [
     font-size: clamp(2rem, 3.6vw, 2.8rem);
     margin: 10px 0 44px;
     color: var(--ink);
+  }
+
+  .black-color-05 {
+    color: rgba(0, 0, 0, 0.5);
+  }
+
+  .tours__notice {
+    font-size: 0.95rem;
+    color: #5a6b5c;
+    background: var(--cream);
+    border: 1px solid rgba(24, 34, 25, 0.12);
+    border-radius: var(--radius);
+    padding: 16px 20px;
+    margin: 0 0 32px;
   }
 
   .tours__grid {
@@ -140,6 +199,9 @@ const tours: Tour[] = [
     padding: 26px 26px 22px;
     transition: transform 0.6s ease, opacity 0.4s ease;
   }
+  .card__media--empty {
+    background: linear-gradient(160deg, var(--forest-deep), #2c3d2d);
+  }
 
   .card__media-scrim {
     position: absolute;
@@ -150,19 +212,6 @@ const tours: Tour[] = [
       rgba(10, 14, 10, 0.25) 55%,
       rgba(10, 14, 10, 0.15) 100%
     );
-  }
-
-  .card__media-icon {
-    position: relative;
-    width: 46px;
-    height: 46px;
-    border-radius: 50%;
-    background: var(--forest-deep);
-    color: var(--gold);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin-bottom: 14px;
   }
 
   .card__media-title {
@@ -215,18 +264,6 @@ const tours: Tour[] = [
     transform: scale(1.04);
   }
 
-  .card__icon {
-    width: 50px;
-    height: 50px;
-    border-radius: 50%;
-    background: var(--forest-deep);
-    color: var(--gold);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin-bottom: 16px;
-  }
-
   .card__name {
     font-family: var(--font-display);
     font-size: 1.28rem;
@@ -238,39 +275,23 @@ const tours: Tour[] = [
     font-size: 0.92rem;
     line-height: 1.55;
     color: #3c4a3d;
-    margin: 0 0 18px;
+    margin: 0 0 12px;
   }
 
-  .card__review {
-    margin-top: auto;
-    padding-top: 16px;
-    border-top: 1px dashed rgba(24, 34, 25, 0.18);
-  }
-
-  .card__stars {
-    display: flex;
-    gap: 3px;
-    margin-bottom: 8px;
-  }
-
-  .card__quote {
+  .card__price {
     font-family: var(--font-display);
     font-style: italic;
-    font-size: 0.92rem;
-    line-height: 1.5;
-    color: var(--ink);
-    margin: 0 0 10px;
+    font-size: 0.98rem;
+    color: var(--russet);
+    margin: 0 0 20px;
   }
 
-  .card__reviewer {
-    font-size: 0.8rem;
-    font-weight: 600;
-    margin: 0;
-    color: var(--russet);
-  }
-  .card__reviewer span {
-    font-weight: 400;
-    color: #6b6355;
+  .card__actions {
+    margin-top: auto;
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    padding-top: 16px;
   }
 
   @media (max-width: 940px) {

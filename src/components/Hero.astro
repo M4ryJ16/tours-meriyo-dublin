@@ -4,14 +4,24 @@ const advantages = [
   "Galería exclusiva profesional",
   "Grupos reducidos, ritmo pausado",
 ];
+
+const backgrounds = [
+  '/public/images/background-3.webp',
+  '/public/images/background-2.webp',
+  '/public/images/background-1.jpeg'
+];
+
+const url = new URL(Astro.request.url);
+const id = url.searchParams.get('bg');
+
+const randomBg = id && Number(id) <= backgrounds.length ? backgrounds[Number(id)] : backgrounds[Math.floor(Math.random() * backgrounds.length)];
 ---
 
-<section class="hero" id="top">
+<section class="hero" id="top" style={`--bg-image: url('${randomBg}')`}>
   <div class="wrap hero__row">
     <div class="hero__copy">
       <p class="eyebrow">Free tours · Dublín</p>
-        <h1 class="hero__title">Freetours<br />en Dublín</h1>
-      </p>
+      <h1 class="hero__title">Freetours<br />en Dublín</h1>
       <a href="/reservar" id="reservar" class="btn btn-solid">
         RESERVAR EXCURSIONES
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
@@ -50,8 +60,8 @@ const advantages = [
     display: flex;
     align-items: center;
     background-image: 
-      linear-gradient(rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.4)), 
-      url('/public/images/v-animal.jpeg');
+      linear-gradient(rgba(0, 0, 0, 0.363), rgba(0, 0, 0, 0.4)), 
+      var(--bg-image);
     background-size: cover;
     background-position:  center;
     background-repeat: no-repeat;
