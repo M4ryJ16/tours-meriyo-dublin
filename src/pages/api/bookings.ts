@@ -1,7 +1,7 @@
 // @ts-nocheck
-
 import type { APIRoute } from 'astro';
-import { ApiError, createBooking, createCustomer } from '@/lib/api.ts';
+import { ApiError, createBooking, getCurrentCustomer } from '@/lib/api.ts';
+import { getSessionToken, clearSessionCookie } from '@/lib/session.js';
 
 export const prerender = false;
 
@@ -10,9 +10,6 @@ interface BookingRequestBody {
   tourDate?: string;
   tourScheduleId?: string;
   guests?: number;
-  fullName?: string;
-  email?: string;
-  phone?: string;
 }
 
 function json(body: unknown, status: number) {
@@ -22,7 +19,20 @@ function json(body: unknown, status: number) {
   });
 }
 
-export const POST: APIRoute = async ({ request }) => {
+export const POST: APIRoute = async ({ request, cookies }) => {
+  const token = getSessionToken(cookies);
+  if (!token) {
+    return json({ message: 'Debes verificar tu correo antes de reservar.' }, 401);
+  }
+
+  let customer;
+  try {
+    customer = await getCurrentCustomer(token);
+  } catch {
+    clearSessionCookie(cookies);
+    return json({ message: 'Tu sesión ha expirado. Verifica tu correo de nuevo para continuar.' }, 401);
+  }
+
   let body: BookingRequestBody;
   try {
     body = await request.json();
@@ -30,22 +40,16 @@ export const POST: APIRoute = async ({ request }) => {
     return json({ message: 'Cuerpo de la petición inválido.' }, 400);
   }
 
-  const { tourId, tourDate, tourScheduleId, guests, fullName, email, phone } = body;
+  const { tourId, tourDate, tourScheduleId, guests } = body;
 
-  if (!tourId || !tourDate || !tourScheduleId || !guests || !fullName || !email) {
+  if (!tourId || !tourDate || !tourScheduleId || !guests) {
     return json(
-      { message: 'Faltan datos obligatorios: ruta, fecha, hora, personas, nombre y correo.' },
+      { message: 'Faltan datos obligatorios: ruta, fecha, hora y número de personas.' },
       400
     );
   }
 
   try {
-    // NOTE: the customers API has no "find by email" endpoint, so a repeat
-    // visitor booking with an email already on file will hit the 409 branch
-    // below rather than reusing their existing customer record. Adding a
-    // GET /customers?email= lookup on the backend would let this create a
-    // new booking under the existing customer instead of failing.
-    const customer = await createCustomer({ fullName, email, phone });
     const booking = await createBooking({
       customerId: customer.id,
       tourId,
@@ -56,15 +60,6 @@ export const POST: APIRoute = async ({ request }) => {
     return json(booking, 201);
   } catch (err) {
     if (err instanceof ApiError) {
-      if (err.status === 409) {
-        return json(
-          {
-            message:
-              'Ya existe una reserva con este correo electrónico. Contacta con nosotros para gestionar tu reserva.'
-          },
-          409
-        );
-      }
       if (err.status === 404) {
         return json({ message: 'La ruta seleccionada ya no está disponible.' }, 404);
       }

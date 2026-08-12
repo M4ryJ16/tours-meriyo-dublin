@@ -148,3 +148,42 @@ export function createBooking(data) {
 export function getBooking(id) {
   return apiFetch(`/bookings/${id}`);
 }
+
+// --- Auth (customer login / registration by email code — no passwords) ---
+
+export function requestRegisterCode({ email, fullName, phone }) {
+  return apiFetch('/auth/register/request-code', {
+    method: 'POST',
+    body: JSON.stringify({ email, fullName, phone })
+  });
+}
+
+export function verifyRegisterCode({ email, code }) {
+  return apiFetch('/auth/register/verify', {
+    method: 'POST',
+    body: JSON.stringify({ email, code })
+  });
+}
+
+export function requestLoginCode({ email }) {
+  return apiFetch('/auth/login/request-code', {
+    method: 'POST',
+    body: JSON.stringify({ email })
+  });
+}
+
+export function verifyLoginCode({ email, code }) {
+  return apiFetch('/auth/login/verify', {
+    method: 'POST',
+    body: JSON.stringify({ email, code })
+  });
+}
+
+// Resolves the customer for a session token by asking the backend to
+// verify the JWT itself (via /auth/me) — the frontend never needs to know
+// JWT_SECRET, it just forwards the Bearer token.
+export function getCurrentCustomer(token) {
+  return apiFetch('/auth/me', {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+}

@@ -1,5 +1,6 @@
 ---
-import { getTours } from "@/lib/api.js";
+import { getTours, getCurrentCustomer } from "@/lib/api.js";
+import { getSessionToken, clearSessionCookie } from "@/lib/session.js";
 
 interface ApiTour {
   id: string;
@@ -10,6 +11,13 @@ interface ApiTour {
   is_active: boolean;
 }
 
+interface CurrentCustomer {
+  id: string;
+  full_name: string;
+  email: string;
+  phone: string | null;
+}
+
 let tours: ApiTour[] = [];
 let loadError = false;
 
@@ -18,6 +26,20 @@ try {
 } catch (err) {
   console.error('Failed to load tours from the API', err);
   loadError = true;
+}
+
+// If the visitor already has a valid session, skip asking for their name/
+// email again and book straight under their account.
+let currentCustomer: CurrentCustomer | null = null;
+const sessionToken = getSessionToken(Astro.cookies);
+if (sessionToken) {
+  try {
+    currentCustomer = await getCurrentCustomer(sessionToken);
+  } catch {
+    // Expired/invalid token — clear it and fall back to the guest flow,
+    // which re-authenticates (or registers) them on submit.
+    clearSessionCookie(Astro.cookies);
+  }
 }
 
 const preselectedTour = Astro.url.searchParams.get("tour") ?? "";
@@ -37,7 +59,7 @@ const preselectedTour = Astro.url.searchParams.get("tour") ?? "";
     {!loadError && (
     <div class="booking__grid">
       <!-- ============ FORM COLUMN ============ -->
-      <form class="booking__form" id="booking-form" novalidate>
+      <form class="booking__form" id="booking-form" novalidate data-authenticated={currentCustomer ? "true" : "false"}>
         <!-- 1. Tour details -->
         <div class="booking__card">
           <h2 class="booking__card-title"><span class="booking__num">01</span>El tour</h2>
@@ -93,27 +115,43 @@ const preselectedTour = Astro.url.searchParams.get("tour") ?? "";
         <div class="booking__card">
           <h2 class="booking__card-title"><span class="booking__num">02</span>Tus datos</h2>
 
-          <div class="field-row">
-            <div class="field">
-              <label for="nombre">Nombre<em>*</em></label>
-              <input type="text" id="nombre" name="nombre" required />
+          {currentCustomer ? (
+            <div class="booking__account" id="account-summary">
+              <p class="booking__account-label">Reservando como</p>
+              <p class="booking__account-name">{currentCustomer.full_name}</p>
+              <p class="booking__account-email">{currentCustomer.email}</p>
+              <button type="button" class="link-btn" id="logout-btn">¿No eres tú? Cambiar de cuenta</button>
             </div>
-            <div class="field">
-              <label for="apellidos">Apellidos<em>*</em></label>
-              <input type="text" id="apellidos" name="apellidos" required />
-            </div>
-          </div>
+          ) : (
+            <div id="guest-fields">
+              <div class="field-row">
+                <div class="field">
+                  <label for="nombre">Nombre<em>*</em></label>
+                  <input type="text" id="nombre" name="nombre" required />
+                </div>
+                <div class="field">
+                  <label for="apellidos">Apellidos<em>*</em></label>
+                  <input type="text" id="apellidos" name="apellidos" required />
+                </div>
+              </div>
 
-          <div class="field-row">
-            <div class="field">
-              <label for="email">Correo electrónico<em>*</em></label>
-              <input type="email" id="email" name="email" required />
+              <div class="field-row">
+                <div class="field">
+                  <label for="email">Correo electrónico<em>*</em></label>
+                  <input type="email" id="email" name="email" required />
+                </div>
+                <div class="field">
+                  <label for="telefono">Teléfono <span class="field__optional">(opcional)</span></label>
+                  <input type="tel" id="telefono" name="telefono" />
+                </div>
+              </div>
+
+              <p class="booking__account-hint">
+                Te enviaremos un código de un solo uso para confirmar tu correo — no hace falta
+                contraseña. Si ya tienes cuenta, entrarás automáticamente.
+              </p>
             </div>
-            <div class="field">
-              <label for="telefono">Teléfono <span class="field__optional">(opcional)</span></label>
-              <input type="tel" id="telefono" name="telefono" />
-            </div>
-          </div>
+          )}
         </div>
 
         <!-- 3. Final step -->
@@ -166,6 +204,30 @@ const preselectedTour = Astro.url.searchParams.get("tour") ?? "";
           </button>
         </div>
       </aside>
+    </div>
+
+    <!-- ============ VERIFICATION MODAL (guest flow only) ============ -->
+    <div class="overlay is-hidden" id="verify-overlay">
+      <div class="panel" role="dialog" aria-modal="true" aria-labelledby="verify-title">
+        <div class="panel__head">
+          <h2 class="panel__title" id="verify-title">Confirma tu correo</h2>
+          <button type="button" class="panel__close" id="verify-close" aria-label="Cerrar">✕</button>
+        </div>
+
+        <p class="booking__account-hint" id="verify-sent-to"></p>
+
+        <form id="verify-form" novalidate>
+          <div class="field">
+            <label for="verify-code">Código de verificación<em>*</em></label>
+            <input type="text" id="verify-code" inputmode="numeric" autocomplete="one-time-code" required />
+          </div>
+          <p class="panel__error is-hidden" id="verify-error" role="alert"></p>
+          <div class="panel__actions">
+            <button type="button" class="link-btn" id="verify-resend">Reenviar código</button>
+            <button type="submit" class="btn orange-btn" id="verify-submit">Verificar y reservar</button>
+          </div>
+        </form>
+      </div>
     </div>
     )}
   </div>
@@ -373,6 +435,110 @@ const preselectedTour = Astro.url.searchParams.get("tour") ?? "";
   }
   .booking__form-error.is-hidden { display: none; }
 
+  /* ---------- Logged-in account summary (replaces guest fields) ---------- */
+  .booking__account {
+    background: var(--parchment-alt);
+    border: 1px dashed rgba(24, 34, 25, 0.18);
+    border-radius: var(--radius);
+    padding: 16px 18px;
+  }
+  .booking__account-label {
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #7a7562;
+    margin: 0 0 4px;
+  }
+  .booking__account-name {
+    font-weight: 600;
+    color: var(--ink);
+    margin: 0 0 2px;
+  }
+  .booking__account-email {
+    font-size: 0.88rem;
+    color: #5a6b5c;
+    margin: 0 0 10px;
+  }
+  .booking__account-hint {
+    font-size: 0.82rem;
+    color: #7a7562;
+    line-height: 1.5;
+    margin: 14px 0 0;
+  }
+
+  .link-btn {
+    background: none;
+    border: none;
+    font-family: var(--font-body);
+    font-size: 0.82rem;
+    color: var(--russet);
+    cursor: pointer;
+    padding: 4px 0;
+  }
+  .link-btn:hover { text-decoration: underline; }
+  .link-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* ---------- Verification modal ---------- */
+  .overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(10, 14, 10, 0.5);
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 8vh 20px;
+    z-index: 100;
+    overflow-y: auto;
+  }
+  .overlay.is-hidden { display: none; }
+
+  .panel {
+    width: 100%;
+    max-width: 420px;
+    background: var(--cream);
+    border-radius: var(--radius);
+    border-top: 3px solid var(--gold);
+    padding: 26px 28px 28px;
+  }
+  .panel__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  .panel__title {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 1.2rem;
+    color: var(--ink);
+    margin: 0;
+  }
+  .panel__close {
+    background: none;
+    border: none;
+    font-size: 1.1rem;
+    color: #7a7562;
+    cursor: pointer;
+    line-height: 1;
+  }
+  .panel__error {
+    font-size: 0.85rem;
+    color: #7a2e1f;
+    background: rgba(158, 73, 54, 0.1);
+    border-left: 3px solid var(--russet);
+    padding: 10px 14px;
+    border-radius: var(--radius);
+    margin: 12px 0 0;
+  }
+  .panel__error.is-hidden { display: none; }
+  .panel__actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 16px;
+  }
+
   /* ---------- Summary ---------- */
   .summary {
     position: sticky;
@@ -452,6 +618,8 @@ const preselectedTour = Astro.url.searchParams.get("tour") ?? "";
   const form = document.getElementById('booking-form') as HTMLFormElement | null;
 
   if (form) {
+    const isAuthenticated = form.dataset.authenticated === 'true';
+
     const tourSelect = document.getElementById('tour') as HTMLSelectElement;
     const fechaInput = document.getElementById('fecha') as HTMLInputElement;
     const horaSelect = document.getElementById('hora') as HTMLSelectElement;
@@ -460,10 +628,13 @@ const preselectedTour = Astro.url.searchParams.get("tour") ?? "";
     const guestsPlus = document.getElementById('guests-plus') as HTMLButtonElement;
     const submitBtn = document.getElementById('submit-btn') as HTMLButtonElement;
     const formError = document.getElementById('form-error') as HTMLParagraphElement;
-    const nombreInput = document.getElementById('nombre') as HTMLInputElement;
-    const apellidosInput = document.getElementById('apellidos') as HTMLInputElement;
-    const emailInput = document.getElementById('email') as HTMLInputElement;
-    const telefonoInput = document.getElementById('telefono') as HTMLInputElement;
+
+    // Only present when the visitor isn't logged in — see the server-rendered
+    // guest-fields branch in this component.
+    const nombreInput = document.getElementById('nombre') as HTMLInputElement | null;
+    const apellidosInput = document.getElementById('apellidos') as HTMLInputElement | null;
+    const emailInput = document.getElementById('email') as HTMLInputElement | null;
+    const telefonoInput = document.getElementById('telefono') as HTMLInputElement | null;
 
     const sTour = document.getElementById('s-tour')!;
     const sFecha = document.getElementById('s-fecha')!;
@@ -593,6 +764,128 @@ const preselectedTour = Astro.url.searchParams.get("tour") ?? "";
       submitBtn.textContent = isSubmitting ? 'Confirmando…' : 'Confirmar reserva';
     }
 
+    async function submitBooking(payload: Record<string, unknown>) {
+      try {
+        const res = await fetch('/api/bookings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          return { ok: false as const, message: data?.message ?? 'No se ha podido completar la reserva.' };
+        }
+        return { ok: true as const, data };
+      } catch {
+        return {
+          ok: false as const,
+          message: 'No se ha podido conectar con el servidor. Comprueba tu conexión e inténtalo de nuevo.'
+        };
+      }
+    }
+
+    // --- Verification modal (guest flow only) ---
+    let pendingBooking: Record<string, unknown> | null = null;
+    let pendingIdentity: { fullName: string; email: string; phone?: string } | null = null;
+    let pendingMode: 'login' | 'register' | null = null;
+
+    const verifyOverlay = document.getElementById('verify-overlay');
+    const verifySentTo = document.getElementById('verify-sent-to') as HTMLParagraphElement | null;
+    const verifyForm = document.getElementById('verify-form') as HTMLFormElement | null;
+    const verifyCodeInput = document.getElementById('verify-code') as HTMLInputElement | null;
+    const verifyError = document.getElementById('verify-error') as HTMLParagraphElement | null;
+    const verifySubmit = document.getElementById('verify-submit') as HTMLButtonElement | null;
+    const verifyResend = document.getElementById('verify-resend') as HTMLButtonElement | null;
+    const verifyClose = document.getElementById('verify-close');
+
+    function openVerifyModal(email: string) {
+      if (verifySentTo) verifySentTo.textContent = `Hemos enviado un código a ${email}.`;
+      if (verifyCodeInput) verifyCodeInput.value = '';
+      verifyError?.classList.add('is-hidden');
+      verifyOverlay?.classList.remove('is-hidden');
+      verifyCodeInput?.focus();
+    }
+    function closeVerifyModal() {
+      verifyOverlay?.classList.add('is-hidden');
+    }
+
+    verifyClose?.addEventListener('click', () => {
+      closeVerifyModal();
+      setSubmitting(false);
+    });
+    verifyOverlay?.addEventListener('click', (e) => {
+      if (e.target === verifyOverlay) {
+        closeVerifyModal();
+        setSubmitting(false);
+      }
+    });
+
+    verifyForm?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      verifyError?.classList.add('is-hidden');
+      const code = verifyCodeInput?.value.trim();
+      if (!code || !pendingIdentity || !pendingMode || !pendingBooking) return;
+
+      if (verifySubmit) {
+        verifySubmit.disabled = true;
+        verifySubmit.textContent = 'Verificando…';
+      }
+
+      try {
+        const res = await fetch('/api/auth/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode: pendingMode, email: pendingIdentity.email, code })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data?.message || 'Código incorrecto.');
+
+        const result = await submitBooking(pendingBooking);
+        if (!result.ok) throw new Error(result.message);
+
+        window.location.href = `/reserva-confirmada?booking=${result.data.id}`;
+      } catch (err: any) {
+        if (verifyError) {
+          verifyError.textContent = err?.message || 'No se ha podido verificar el código.';
+          verifyError.classList.remove('is-hidden');
+        }
+        if (verifySubmit) {
+          verifySubmit.disabled = false;
+          verifySubmit.textContent = 'Verificar y reservar';
+        }
+        setSubmitting(false);
+      }
+    });
+
+    verifyResend?.addEventListener('click', async () => {
+      if (!pendingIdentity) return;
+      verifyResend.disabled = true;
+      try {
+        const res = await fetch('/api/auth/start', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(pendingIdentity)
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data?.message || 'No se ha podido reenviar el código.');
+        pendingMode = data.mode;
+        if (verifySentTo) verifySentTo.textContent = `Hemos enviado un nuevo código a ${pendingIdentity.email}.`;
+      } catch (err: any) {
+        if (verifyError) {
+          verifyError.textContent = err?.message || 'No se ha podido reenviar el código.';
+          verifyError.classList.remove('is-hidden');
+        }
+      } finally {
+        verifyResend.disabled = false;
+      }
+    });
+
+    document.getElementById('logout-btn')?.addEventListener('click', async () => {
+      await fetch('/api/auth/logout', { method: 'POST' });
+      window.location.reload();
+    });
+
+    // --- Main submit ---
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       clearError();
@@ -606,35 +899,60 @@ const preselectedTour = Astro.url.searchParams.get("tour") ?? "";
         return;
       }
 
-      const payload = {
+      const bookingPayload = {
         tourId: tourSelect.value,
         tourDate: fechaInput.value,
         tourScheduleId: horaSelect.value,
-        guests: Number(guestsInput.value),
+        guests: Number(guestsInput.value)
+      };
+
+      if (isAuthenticated) {
+        setSubmitting(true);
+        const result = await submitBooking(bookingPayload);
+        if (result.ok) {
+          window.location.href = `/reserva-confirmada?booking=${result.data.id}`;
+        } else {
+          showError(result.message);
+          setSubmitting(false);
+        }
+        return;
+      }
+
+      // Guest flow — collect + validate their details, then send a
+      // verification code. Verifying it either logs them into an existing
+      // account or creates a new one (see /api/auth/start).
+      if (!nombreInput?.value.trim() || !apellidosInput?.value.trim()) {
+        showError('Introduce tu nombre y apellidos.');
+        return;
+      }
+      const email = emailInput?.value.trim() ?? '';
+      if (!email) {
+        showError('Introduce tu correo electrónico.');
+        return;
+      }
+
+      pendingBooking = bookingPayload;
+      pendingIdentity = {
         fullName: `${nombreInput.value} ${apellidosInput.value}`.trim(),
-        email: emailInput.value,
-        phone: telefonoInput.value || undefined
+        email,
+        phone: telefonoInput?.value.trim() || undefined
       };
 
       setSubmitting(true);
-
       try {
-        const res = await fetch('/api/bookings', {
+        const res = await fetch('/api/auth/start', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
+          body: JSON.stringify(pendingIdentity)
         });
         const data = await res.json();
+        if (!res.ok) throw new Error(data?.message || 'No se ha podido enviar el código de verificación.');
 
-        if (!res.ok) {
-          showError(data?.message ?? 'No se ha podido completar la reserva. Inténtalo de nuevo.');
-          setSubmitting(false);
-          return;
-        }
-
-        window.location.href = `/reserva-confirmada?booking=${data.id}`;
-      } catch (err) {
-        showError('No se ha podido conectar con el servidor. Comprueba tu conexión e inténtalo de nuevo.');
+        pendingMode = data.mode;
+        openVerifyModal(email);
+      } catch (err: any) {
+        showError(err?.message || 'No se ha podido enviar el código de verificación.');
+      } finally {
         setSubmitting(false);
       }
     });
