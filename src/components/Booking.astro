@@ -109,6 +109,8 @@ const preselectedTour = Astro.url.searchParams.get("tour") ?? "";
               </div>
             </div>
           </div>
+
+          <p class="field__notice is-hidden" id="availability-notice" role="status"></p>
         </div>
 
         <!-- 2. Your details -->
@@ -332,6 +334,15 @@ const preselectedTour = Astro.url.searchParams.get("tour") ?? "";
     color: #8a8272;
   }
 
+  .field__notice {
+    margin: -6px 0 0;
+    font-size: 0.82rem;
+    line-height: 1.5;
+    color: var(--russet);
+  }
+  .field__notice.is-hidden { display: none; }
+  .field__notice--ok { color: #2e5c30; }
+
   input[type="text"],
   input[type="email"],
   input[type="tel"],
@@ -393,6 +404,7 @@ const preselectedTour = Astro.url.searchParams.get("tour") ?? "";
     transition: background 0.2s ease;
   }
   .stepper__btn:hover { background: var(--gold-soft); }
+  .stepper__btn:disabled { opacity: 0.5; cursor: not-allowed; }
   .stepper input {
     width: 56px;
     height: 44px;
@@ -628,6 +640,7 @@ const preselectedTour = Astro.url.searchParams.get("tour") ?? "";
     const guestsPlus = document.getElementById('guests-plus') as HTMLButtonElement;
     const submitBtn = document.getElementById('submit-btn') as HTMLButtonElement;
     const formError = document.getElementById('form-error') as HTMLParagraphElement;
+    const availabilityNotice = document.getElementById('availability-notice') as HTMLParagraphElement;
 
     // Only present when the visitor isn't logged in — see the server-rendered
     // guest-fields branch in this component.
@@ -647,6 +660,14 @@ const preselectedTour = Astro.url.searchParams.get("tour") ?? "";
     const scheduleCache = new Map<string, { id: string; time: string }[]>();
     let scheduleRequestToken = 0;
 
+    // Cache of availability checks, keyed by tour+date+schedule, plus the
+    // result for whatever combination is currently selected. Availability
+    // is a best-effort hint for the UI — the server still enforces it
+    // authoritatively when the booking is actually submitted.
+    const availabilityCache = new Map<string, { remaining: number | null; capacity: number | null }>();
+    let currentAvailability: { remaining: number | null; capacity: number | null } | null = null;
+    let availabilityRequestToken = 0;
+
     const formatDate = (value: string) => {
       if (!value) return '—';
       const d = new Date(value + 'T00:00:00');
@@ -660,7 +681,12 @@ const preselectedTour = Astro.url.searchParams.get("tour") ?? "";
     function getCurrentCapacity(): number {
       const selected = tourSelect.selectedOptions[0];
       const cap = Number(selected?.dataset.capacity);
-      return Number.isFinite(cap) && cap > 0 ? cap : 15; // fallback if no tour selected yet
+      const tourCapacity = Number.isFinite(cap) && cap > 0 ? cap : 15; // fallback if no tour selected yet
+
+      if (currentAvailability && currentAvailability.remaining !== null) {
+        return Math.max(Math.min(tourCapacity, currentAvailability.remaining), 0);
+      }
+      return tourCapacity;
     }
 
     async function loadSchedulesForSelectedTour() {
@@ -712,6 +738,67 @@ const preselectedTour = Astro.url.searchParams.get("tour") ?? "";
       updateSummary();
     }
 
+    // Checks remaining spots for the currently selected tour + date + hora.
+    // No-ops (and clears the notice) until all three are chosen.
+    async function checkAvailability() {
+      const tourId = tourSelect.value;
+      const date = fechaInput.value;
+      const scheduleId = horaSelect.value;
+      const thisRequest = ++availabilityRequestToken;
+
+      if (!tourId || !date || !scheduleId) {
+        currentAvailability = null;
+        availabilityNotice.classList.add('is-hidden');
+        updateSummary();
+        return;
+      }
+
+      const cacheKey = `${tourId}|${date}|${scheduleId}`;
+      let availability = availabilityCache.get(cacheKey);
+
+      if (!availability) {
+        try {
+          const res = await fetch(
+            `/api/tours/${tourId}/availability?date=${encodeURIComponent(date)}&scheduleId=${encodeURIComponent(scheduleId)}`
+          );
+          if (!res.ok) throw new Error('Failed to load availability');
+          availability = await res.json();
+          availabilityCache.set(cacheKey, availability!);
+        } catch {
+          // Don't block the user on a failed check — the real enforcement
+          // happens server-side when the booking is submitted.
+          if (thisRequest === availabilityRequestToken) {
+            currentAvailability = null;
+            availabilityNotice.classList.add('is-hidden');
+            updateSummary();
+          }
+          return;
+        }
+      }
+
+      // A newer check has since started — drop this stale response.
+      if (thisRequest !== availabilityRequestToken) return;
+
+      currentAvailability = availability!;
+
+      if (availability!.remaining !== null) {
+        if (availability!.remaining <= 0) {
+          availabilityNotice.textContent = 'No quedan plazas para esta fecha y hora. Elige otra.';
+          availabilityNotice.classList.remove('is-hidden', 'field__notice--ok');
+        } else if (availability!.remaining <= 5) {
+          availabilityNotice.textContent = `Solo quedan ${availability!.remaining} plaza(s) para esta salida.`;
+          availabilityNotice.classList.remove('is-hidden');
+          availabilityNotice.classList.add('field__notice--ok');
+        } else {
+          availabilityNotice.classList.add('is-hidden');
+        }
+      } else {
+        availabilityNotice.classList.add('is-hidden');
+      }
+
+      updateSummary();
+    }
+
     function updateSummary() {
       const selected = tourSelect.selectedOptions[0];
       const hasTour = Boolean(selected?.value);
@@ -719,21 +806,28 @@ const preselectedTour = Astro.url.searchParams.get("tour") ?? "";
       const currency = selected?.dataset.currency ?? 'EUR';
 
       const capacity = getCurrentCapacity();
-      guestsInput.max = String(capacity);
-      if (Number(guestsInput.value) > capacity) {
-        guestsInput.value = String(capacity);
+      const effectiveMax = Math.max(capacity, 1);
+      guestsInput.max = String(effectiveMax);
+      if (Number(guestsInput.value) > effectiveMax) {
+        guestsInput.value = String(effectiveMax);
       }
 
       const guests = Number(guestsInput.value || 1);
       const total = price * guests;
 
       const selectedSchedule = horaSelect.selectedOptions[0];
+      const soldOut = Boolean(
+        currentAvailability && currentAvailability.remaining !== null && currentAvailability.remaining <= 0
+      );
 
       sTour.textContent = hasTour ? selected!.textContent?.split(' — ')[0] ?? '' : '—';
       sFecha.textContent = formatDate(fechaInput.value);
       sHora.textContent = selectedSchedule?.value ? selectedSchedule.textContent ?? '—' : '—';
       sGuests.textContent = String(guests);
       sTotal.textContent = hasTour ? `${total.toFixed(2)} ${currency}` : '—';
+
+      submitBtn.disabled = soldOut;
+      guestsPlus.disabled = soldOut;
     }
 
     guestsMinus.addEventListener('click', () => {
@@ -742,13 +836,21 @@ const preselectedTour = Astro.url.searchParams.get("tour") ?? "";
     });
     guestsPlus.addEventListener('click', () => {
       const max = getCurrentCapacity();
+      if (max < 1) return; // sold out — nothing to add
       guestsInput.value = String(Math.min(max, Number(guestsInput.value) + 1));
       updateSummary();
     });
 
-    tourSelect.addEventListener('change', loadSchedulesForSelectedTour);
+    tourSelect.addEventListener('change', () => {
+      currentAvailability = null;
+      availabilityNotice.classList.add('is-hidden');
+      loadSchedulesForSelectedTour();
+    });
     [fechaInput, horaSelect].forEach((el) =>
-      el.addEventListener('change', updateSummary)
+      el.addEventListener('change', () => {
+        updateSummary();
+        checkAvailability();
+      })
     );
 
     function showError(message: string) {
@@ -897,6 +999,18 @@ const preselectedTour = Astro.url.searchParams.get("tour") ?? "";
       if (!horaSelect.value) {
         showError('Selecciona una hora de inicio.');
         return;
+      }
+
+      if (currentAvailability && currentAvailability.remaining !== null) {
+        const guests = Number(guestsInput.value);
+        if (currentAvailability.remaining <= 0) {
+          showError('No quedan plazas para esta fecha y hora. Elige otra.');
+          return;
+        }
+        if (guests > currentAvailability.remaining) {
+          showError(`Solo quedan ${currentAvailability.remaining} plaza(s) para esta salida.`);
+          return;
+        }
       }
 
       const bookingPayload = {

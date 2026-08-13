@@ -66,6 +66,21 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       if (err.status === 400) {
         return json({ message: err.message }, 400);
       }
+      // The backend now enforces tour capacity per date/schedule and
+      // returns 409 when it's full (or when the tour was deactivated
+      // between page load and submit). This was previously falling
+      // through to the generic 500 branch below, hiding the real reason
+      // from the visitor.
+      if (err.status === 409) {
+        const remaining = (err.body as any)?.remaining;
+        const message =
+          typeof remaining === 'number'
+            ? remaining > 0
+              ? `Solo quedan ${remaining} plaza(s) para esta salida. Reduce el número de personas o elige otra fecha/hora.`
+              : 'Esta salida está completa. Elige otra fecha u hora.'
+            : 'Esta excursión no está disponible en este momento.';
+        return json({ message, remaining: remaining ?? null }, 409);
+      }
     }
     console.error('Failed to create booking', err);
     return json(

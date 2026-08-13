@@ -194,3 +194,20 @@ export function createReview(tourId, data) {
     body: JSON.stringify(data)
   });
 }
+
+// A tour's available departure times. Bookings now require a
+// tour_schedule_id (see /lib/adminApi.js and the booking form), so the
+// frontend needs to be able to look these up — both server-side (Booking.astro
+// pre-selecting a tour) and, via src/pages/api/tours/[id]/schedules.js, from
+// client-side code that can't hold the API key itself.
+export function getTourSchedules(tourId) {
+  return apiFetch(`/tours/${tourId}/schedules`);
+}
+
+// Remaining spots for a specific tour + date + departure time. Best-effort
+// hint for the UI (see the backend route's comment) — the real enforcement
+// happens server-side when POST /bookings is submitted.
+export function getTourAvailability(tourId, { date, scheduleId }) {
+  const params = new URLSearchParams({ date, scheduleId });
+  return apiFetch(`/tours/${tourId}/availability?${params.toString()}`);
+}
