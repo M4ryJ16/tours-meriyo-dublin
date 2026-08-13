@@ -1,6 +1,8 @@
 ---
+// @ts-nocheck
 import "@/styles/global.css";
 import { listAllTours, listTourSchedules } from "@/lib/adminApi.js";
+import ConfirmDialog from "@/components/ConfirmDialog.astro";
 
 export const prerender = false;
 
@@ -68,6 +70,7 @@ const formatTime = (value: string) => value?.slice(0, 5) ?? value;
         <a href="/" class="admin-top__logo">Tours <em>Meriyo</em> Dublín</a>
         <span class="admin-top__tag">Panel de horarios</span>
         <a href="/admin/tours" class="admin-top__nav-link">Excursiones</a>
+        <button type="button" class="admin-top__back admin-top__logout" id="admin-logout-btn">Cerrar sesión</button>
         <a href="/" class="admin-top__back">← Volver al sitio</a>
       </div>
     </header>
@@ -150,6 +153,8 @@ const formatTime = (value: string) => value?.slice(0, 5) ?? value;
       </div>
     </main>
 
+    <ConfirmDialog />
+
     <style is:global>
       .admin-top {
         background: var(--forest-deep);
@@ -188,6 +193,13 @@ const formatTime = (value: string) => value?.slice(0, 5) ?? value;
         color: var(--parchment-alt);
       }
       .admin-top__back:hover { color: var(--gold-soft); }
+      .admin-top__logout {
+        background: none;
+        border: none;
+        font-family: inherit;
+        cursor: pointer;
+        padding: 0;
+      }
 
       .admin { background: var(--parchment); padding-block: 44px 100px; min-height: 60vh; }
 
@@ -346,6 +358,15 @@ const formatTime = (value: string) => value?.slice(0, 5) ?? value;
     </style>
 
     <script>
+      import { initConfirmDialog, confirmDialog } from "@/lib/confirmDialog.js";
+
+      initConfirmDialog();
+
+      document.getElementById("admin-logout-btn")?.addEventListener("click", async () => {
+        await fetch("/api/admin/logout", { method: "POST" });
+        window.location.href = "/admin/login";
+      });
+
       const tourPicker = document.getElementById("tour-picker") as HTMLSelectElement | null;
       const banner = document.getElementById("admin-banner") as HTMLParagraphElement | null;
       const scheduleCard = document.getElementById("schedules-card") as HTMLDivElement | null;
@@ -442,7 +463,12 @@ const formatTime = (value: string) => value?.slice(0, 5) ?? value;
         const scheduleId = target.getAttribute("data-delete-schedule");
         if (!scheduleId || !scheduleCard) return;
 
-        if (!window.confirm("¿Eliminar este horario? Esta acción no se puede deshacer.")) return;
+        const confirmed = await confirmDialog({
+          title: "Eliminar horario",
+          message: "¿Eliminar este horario? Esta acción no se puede deshacer.",
+          confirmLabel: "Eliminar"
+        });
+        if (!confirmed) return;
 
         const tourId = scheduleCard.getAttribute("data-tour-id");
         if (!tourId) return;

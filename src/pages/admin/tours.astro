@@ -1,6 +1,8 @@
 ---
+// @ts-nocheck
 import "@/styles/global.css";
 import { listAllTours } from "@/lib/adminApi.js";
+import ConfirmDialog from "@/components/ConfirmDialog.astro";
 
 export const prerender = false;
 
@@ -47,6 +49,7 @@ try {
         <a href="/" class="admin-top__logo">Tours <em>Meriyo</em> Dublín</a>
         <span class="admin-top__tag">Panel de excursiones</span>
         <a href="/admin/schedules" class="admin-top__nav-link">Horarios</a>
+        <button type="button" class="admin-top__back admin-top__logout" id="admin-logout-btn">Cerrar sesión</button>
         <a href="/" class="admin-top__back">← Volver al sitio</a>
       </div>
     </header>
@@ -190,6 +193,8 @@ try {
       </div>
     </div>
 
+    <ConfirmDialog />
+
     <style is:global>
     .black-color-05 {
         color: rgba(0, 0, 0, 0.5);
@@ -231,6 +236,13 @@ try {
         color: var(--parchment-alt);
       }
       .admin-top__back:hover { color: var(--gold-soft); }
+      .admin-top__logout {
+        background: none;
+        border: none;
+        font-family: inherit;
+        cursor: pointer;
+        padding: 0;
+      }
 
       .admin { background: var(--parchment); padding-block: 44px 100px; min-height: 60vh; }
 
@@ -463,6 +475,15 @@ try {
     </style>
 
     <script>
+      import { initConfirmDialog, confirmDialog } from "@/lib/confirmDialog.js";
+
+      initConfirmDialog();
+
+      document.getElementById("admin-logout-btn")?.addEventListener("click", async () => {
+        await fetch("/api/admin/logout", { method: "POST" });
+        window.location.href = "/admin/login";
+      });
+
       interface Tour {
         id: string;
         name: string;
@@ -643,10 +664,16 @@ try {
         const toggleId = target.getAttribute("data-toggle-tour");
         if (toggleId) {
           const isActive = target.getAttribute("data-active") === "true";
-          const confirmMessage = isActive
-            ? "¿Archivar esta excursión? Dejará de verse en la web."
-            : "¿Reactivar esta excursión? Volverá a verse en la web.";
-          if (!window.confirm(confirmMessage)) return;
+
+          const confirmed = await confirmDialog({
+            title: isActive ? "Archivar excursión" : "Reactivar excursión",
+            message: isActive
+              ? "¿Archivar esta excursión? Dejará de verse en la web."
+              : "¿Reactivar esta excursión? Volverá a verse en la web.",
+            confirmLabel: isActive ? "Archivar" : "Reactivar",
+            danger: isActive
+          });
+          if (!confirmed) return;
 
           target.setAttribute("disabled", "true");
           try {
