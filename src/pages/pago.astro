@@ -1,0 +1,408 @@
+---
+import Nav from "@/components/Nav.astro";
+import { ApiError, getBooking, getCurrentCustomer } from "@/lib/api.js";
+import { getSessionToken, clearSessionCookie } from "@/lib/session.js";
+
+export const prerender = false;
+
+const bookingId = Astro.url.searchParams.get("booking");
+const stripePublishableKey = import.meta.env.PUBLIC_STRIPE_PUBLISHABLE_KEY ?? "";
+const paypalClientId = import.meta.env.PUBLIC_PAYPAL_CLIENT_ID ?? "";
+
+if (!bookingId) {
+  return Astro.redirect("/reservar");
+}
+
+const sessionToken = getSessionToken(Astro.cookies);
+if (!sessionToken) {
+  return Astro.redirect(`/iniciar-sesion?redirect=${encodeURIComponent(`/pago?booking=${bookingId}`)}`);
+}
+
+let customer;
+try {
+  customer = await getCurrentCustomer(sessionToken);
+} catch {
+  clearSessionCookie(Astro.cookies);
+  return Astro.redirect(`/iniciar-sesion?redirect=${encodeURIComponent(`/pago?booking=${bookingId}`)}`);
+}
+
+let booking: any = null;
+let loadError: string | null = null;
+
+try {
+  booking = await getBooking(bookingId);
+} catch (err) {
+  loadError =
+    err instanceof ApiError && err.status === 404
+      ? "No hemos encontrado esa reserva."
+      : "No hemos podido recuperar los datos de tu reserva.";
+}
+
+if (booking && booking.customer_id !== customer.id) {
+  return Astro.redirect("/reservar");
+}
+
+// Already paid (or otherwise resolved) — nothing left to check out.
+if (booking && booking.status !== "pending") {
+  return Astro.redirect(`/reserva-confirmada?booking=${bookingId}`);
+}
+
+const formatDate = (value: string) =>
+  new Date(value).toLocaleDateString("es-ES", { day: "numeric", month: "long", year: "numeric" });
+const formatTime = (value: string) => value?.slice(0, 5) ?? value;
+---
+
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Pago — Tours Meriyo Dublín</title>
+    <link rel="icon" href="/public/web-icon-orange.svg" />
+    <meta name="robots" content="noindex" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,500;0,600;1,500;1,600&family=Work+Sans:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/src/styles/global.css" />
+  </head>
+  <body>
+    <Nav />
+    <main>
+      <section class="pay">
+        <div class="wrap pay__inner">
+          {loadError && (
+            <>
+              <p class="eyebrow pay__eyebrow">Vaya</p>
+              <h1 class="pay__title">{loadError}</h1>
+              <a href="/reservar" class="btn orange-btn rounded-btn">Volver a reservar</a>
+            </>
+          )}
+
+          {!loadError && booking && (
+            <div class="pay__grid">
+              <div class="pay__methods">
+                <p class="eyebrow pay__eyebrow">Último paso</p>
+                <h1 class="pay__title">Completa tu pago</h1>
+
+                <div class="pay__tabs" role="tablist">
+                  <button type="button" class="pay__tab is-active" id="tab-card" role="tab" aria-selected="true">Tarjeta</button>
+                  <button type="button" class="pay__tab" id="tab-paypal" role="tab" aria-selected="false">PayPal</button>
+                </div>
+
+                <p class="pay__error is-hidden" id="pay-error" role="alert"></p>
+
+                <div id="panel-card" class="pay__panel">
+                  <div id="stripe-payment-element"></div>
+                  <button type="button" class="btn orange-btn pay__cta" id="stripe-pay-btn">Pagar ahora</button>
+                </div>
+
+                <div id="panel-paypal" class="pay__panel is-hidden">
+                  <div id="paypal-buttons"></div>
+                </div>
+              </div>
+
+              <aside class="pay__summary">
+                <div class="pay__summary-inner">
+                  <h2 class="pay__summary-title">Tu reserva</h2>
+                  <dl class="pay__summary-list">
+                    <div class="pay__summary-row">
+                      <dt>Ruta</dt>
+                      <dd>{booking.tour_name}</dd>
+                    </div>
+                    <div class="pay__summary-row">
+                      <dt>Fecha</dt>
+                      <dd>{formatDate(booking.tour_date)}</dd>
+                    </div>
+                    {booking.departure_time && (
+                      <div class="pay__summary-row">
+                        <dt>Hora</dt>
+                        <dd>{formatTime(booking.departure_time)}</dd>
+                      </div>
+                    )}
+                    <div class="pay__summary-row">
+                      <dt>Personas</dt>
+                      <dd>{booking.quantity}</dd>
+                    </div>
+                  </dl>
+                  <div class="pay__summary-divider"></div>
+                  <div class="pay__summary-row pay__summary-row--total">
+                    <dt>Total</dt>
+                    <dd>{Number(booking.total_amount).toFixed(2)} {booking.currency}</dd>
+                  </div>
+                </div>
+              </aside>
+            </div>
+          )}
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer" id="sobre-mi">
+      <div class="wrap site-footer__row">
+        <div>
+          <p class="site-footer__logo">Tours <em>Meriyo</em> Dublín</p>
+          <p class="site-footer__text">
+            Guías locales, grupos reducidos y el Dublín que no sale en las postales.
+          </p>
+        </div>
+        <p class="site-footer__copy">© {new Date().getFullYear()} Tours Meriyo Dublín</p>
+      </div>
+    </footer>
+  </body>
+</html>
+
+<style is:global>
+  .pay { background: var(--parchment); min-height: 70vh; padding-block: 56px 100px; }
+  .pay__eyebrow { color: var(--russet); }
+  .pay__title {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: clamp(1.9rem, 3.4vw, 2.6rem);
+    margin: 10px 0 26px;
+    color: var(--ink);
+  }
+  .pay__grid { display: grid; grid-template-columns: 1fr 360px; gap: 32px; align-items: start; }
+
+  .pay__methods {
+    background: var(--cream);
+    border: 1px solid rgba(24, 34, 25, 0.1);
+    border-top: 3px solid var(--gold);
+    border-radius: var(--radius);
+    padding: 30px 30px 32px;
+  }
+
+  .pay__tabs { display: flex; gap: 10px; margin-bottom: 22px; }
+  .pay__tab {
+    font-family: var(--font-body);
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: #5a6b5c;
+    background: var(--parchment-alt);
+    border: 1px solid rgba(24, 34, 25, 0.14);
+    border-radius: 999px;
+    padding: 8px 18px;
+    cursor: pointer;
+  }
+  .pay__tab.is-active { background: var(--gold); border-color: var(--gold); color: #fff; }
+
+  .pay__panel.is-hidden { display: none; }
+  .pay__cta { width: 100%; justify-content: center; margin-top: 18px; }
+  .pay__cta:disabled { opacity: 0.6; cursor: not-allowed; }
+
+  .pay__error {
+    font-size: 0.85rem;
+    color: #7a2e1f;
+    background: rgba(158, 73, 54, 0.1);
+    border-left: 3px solid var(--russet);
+    padding: 10px 14px;
+    border-radius: var(--radius);
+    margin: 0 0 18px;
+  }
+  .pay__error.is-hidden { display: none; }
+
+  .pay__summary { position: sticky; top: 96px; }
+  .pay__summary-inner {
+    background: var(--forest-deep);
+    color: var(--parchment-alt);
+    border-radius: var(--radius);
+    border: 1px solid var(--line);
+    padding: 28px 26px;
+  }
+  .pay__summary-title {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-weight: 600;
+    font-size: 1.15rem;
+    color: var(--cream);
+    margin: 0 0 18px;
+  }
+  .pay__summary-list { margin: 0; }
+  .pay__summary-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: 0.86rem;
+    padding: 8px 0;
+    border-bottom: 1px dashed rgba(242, 234, 215, 0.16);
+  }
+  .pay__summary-row dt { color: rgba(242, 234, 215, 0.65); margin: 0; font-weight: 400; }
+  .pay__summary-row dd { margin: 0; color: var(--cream); font-weight: 500; text-align: right; }
+  .pay__summary-divider { height: 1px; background: rgba(242, 234, 215, 0.16); margin: 16px 0; }
+  .pay__summary-row--total dt, .pay__summary-row--total dd { font-weight: 600; color: var(--cream); border: none; }
+  .pay__summary-row--total { border: none; padding-top: 0; }
+
+  @media (max-width: 900px) {
+    .pay__grid { grid-template-columns: 1fr; }
+    .pay__summary { position: static; }
+  }
+
+  .site-footer {
+    background: var(--forest-deep);
+    color: var(--parchment-alt);
+    padding-block: 40px;
+    border-top: 1px solid var(--line);
+  }
+  .site-footer__row { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; flex-wrap: wrap; }
+  .site-footer__logo { font-family: var(--font-display); font-style: italic; font-size: 1.05rem; color: var(--cream); margin: 0 0 8px; }
+  .site-footer__logo em { color: var(--gold); }
+  .site-footer__text { max-width: 46ch; font-size: 0.85rem; line-height: 1.6; color: var(--parchment-alt); margin: 0; }
+  .site-footer__copy { font-size: 0.78rem; color: rgba(242, 234, 215, 0.6); margin: 0; }
+</style>
+
+{booking && !loadError && (
+  <script
+    define:vars={{
+      bookingId,
+      stripePublishableKey,
+      paypalClientId,
+      currency: booking.currency,
+      returnUrl: `${Astro.url.origin}/pago/retorno?booking=${bookingId}`
+    }}
+  >
+    const tabCard = document.getElementById('tab-card');
+    const tabPaypal = document.getElementById('tab-paypal');
+    const panelCard = document.getElementById('panel-card');
+    const panelPaypal = document.getElementById('panel-paypal');
+    const payError = document.getElementById('pay-error');
+
+    function showError(message) {
+      payError.textContent = message;
+      payError.classList.remove('is-hidden');
+    }
+    function clearError() {
+      payError.textContent = '';
+      payError.classList.add('is-hidden');
+    }
+
+    function selectTab(which) {
+      const cardActive = which === 'card';
+      tabCard.classList.toggle('is-active', cardActive);
+      tabPaypal.classList.toggle('is-active', !cardActive);
+      tabCard.setAttribute('aria-selected', String(cardActive));
+      tabPaypal.setAttribute('aria-selected', String(!cardActive));
+      panelCard.classList.toggle('is-hidden', !cardActive);
+      panelPaypal.classList.toggle('is-hidden', cardActive);
+    }
+    tabCard.addEventListener('click', () => selectTab('card'));
+    tabPaypal.addEventListener('click', () => selectTab('paypal'));
+
+    // --- Stripe (card) ---
+    (async function initStripe() {
+      if (!stripePublishableKey) {
+        panelCard.innerHTML = '<p class="pay__error">El pago con tarjeta no está disponible ahora mismo. Usa PayPal.</p>';
+        return;
+      }
+
+      const stripeScript = document.createElement('script');
+      stripeScript.src = 'https://js.stripe.com/v3/';
+      document.head.appendChild(stripeScript);
+      await new Promise((resolve) => { stripeScript.onload = resolve; });
+
+      const stripe = window.Stripe(stripePublishableKey);
+      const payBtn = document.getElementById('stripe-pay-btn');
+      let elements;
+
+      try {
+        const res = await fetch(`/api/bookings/${bookingId}/checkout/stripe-intent`, { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data?.message || 'No se ha podido iniciar el pago.');
+
+        elements = stripe.elements({ clientSecret: data.clientSecret });
+        elements.create('payment').mount('#stripe-payment-element');
+      } catch (err) {
+        panelCard.innerHTML = `<p class="pay__error">${err?.message || 'No se ha podido iniciar el pago con tarjeta.'}</p>`;
+        return;
+      }
+
+      payBtn.addEventListener('click', async () => {
+        clearError();
+        payBtn.disabled = true;
+        payBtn.textContent = 'Procesando…';
+
+        const { error, paymentIntent } = await stripe.confirmPayment({
+          elements,
+          confirmParams: { return_url: returnUrl },
+          redirect: 'if_required'
+        });
+
+        if (error) {
+          showError(error.message || 'No se ha podido procesar el pago.');
+          payBtn.disabled = false;
+          payBtn.textContent = 'Pagar ahora';
+          return;
+        }
+
+        // No redirect needed (the common case for cards without 3-D
+        // Secure) — finalize right here instead of round-tripping
+        // through /pago/retorno.
+        if (paymentIntent && paymentIntent.status === 'succeeded') {
+          try {
+            const res = await fetch(`/api/bookings/${bookingId}/checkout/stripe-finalize`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ paymentIntentId: paymentIntent.id })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data?.message || 'No se ha podido confirmar el pago.');
+            window.location.href = `/reserva-confirmada?booking=${bookingId}`;
+          } catch (err) {
+            showError(err?.message || 'El pago se ha realizado pero no hemos podido confirmarlo. Contacta con nosotros.');
+            payBtn.disabled = false;
+            payBtn.textContent = 'Pagar ahora';
+          }
+        } else {
+          // Stripe is redirecting for an additional step (e.g. 3-D
+          // Secure) — /pago/retorno finishes the job on return.
+          payBtn.textContent = 'Redirigiendo…';
+        }
+      });
+    })();
+
+    // --- PayPal ---
+    (async function initPaypal() {
+      if (!paypalClientId) {
+        panelPaypal.innerHTML = '<p class="pay__error">El pago con PayPal no está disponible ahora mismo. Usa tarjeta.</p>';
+        return;
+      }
+
+      const sdkScript = document.createElement('script');
+      sdkScript.src = `https://www.paypal.com/sdk/js?client-id=${encodeURIComponent(paypalClientId)}&currency=${encodeURIComponent(currency)}`;
+      document.head.appendChild(sdkScript);
+      await new Promise((resolve) => { sdkScript.onload = resolve; });
+
+      window.paypal.Buttons({
+        createOrder: async () => {
+          clearError();
+          const res = await fetch(`/api/bookings/${bookingId}/checkout/paypal-order`, { method: 'POST' });
+          const data = await res.json();
+          if (!res.ok) {
+            showError(data?.message || 'No se ha podido iniciar el pago con PayPal.');
+            throw new Error(data?.message || 'PayPal order creation failed');
+          }
+          return data.orderId;
+        },
+        onApprove: async (data) => {
+          try {
+            const res = await fetch(`/api/bookings/${bookingId}/checkout/paypal-capture`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ orderId: data.orderID })
+            });
+            const result = await res.json();
+            if (!res.ok) throw new Error(result?.message || 'No se ha podido confirmar el pago.');
+            window.location.href = `/reserva-confirmada?booking=${bookingId}`;
+          } catch (err) {
+            showError(err?.message || 'El pago se ha realizado pero no hemos podido confirmarlo. Contacta con nosotros.');
+          }
+        },
+        onError: (err) => {
+          console.error('PayPal error', err);
+          showError('No se ha podido procesar el pago con PayPal.');
+        }
+      }).render('#paypal-buttons');
+    })();
+  </script>
+)}

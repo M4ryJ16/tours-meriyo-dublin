@@ -1,6 +1,6 @@
 // @ts-nocheck
 import type { APIRoute } from 'astro';
-import { ApiError, createBooking, getCurrentCustomer } from '@/lib/api.ts';
+import { ApiError, createBooking, getCurrentCustomer } from '@/lib/api.js';
 import { getSessionToken, clearSessionCookie } from '@/lib/session.js';
 
 export const prerender = false;

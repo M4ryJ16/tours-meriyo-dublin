@@ -211,3 +211,52 @@ export function getTourAvailability(tourId, { date, scheduleId }) {
   const params = new URLSearchParams({ date, scheduleId });
   return apiFetch(`/tours/${tourId}/availability?${params.toString()}`);
 }
+
+// --- Customers & bookings ---
+// Payment methods (/customers/:id/payment-methods, /payment-methods/:id)
+// and generic transaction listing (/transactions/*) are still not wired
+// up here — those are admin/back-office endpoints. The actual checkout
+// flow (creating a Stripe PaymentIntent / PayPal order and finalizing
+// it) IS wired up below, since the site now collects payment itself.
+
+export function createCustomer(data) {
+  return apiFetch('/customers', {
+    method: 'POST',
+    body: JSON.stringify(data)
+  });
+}
+
+export function createBooking(data) {
+  return apiFetch('/bookings', {
+    method: 'POST',
+    body: JSON.stringify(data)
+  });
+}
+
+export function getBooking(id) {
+  return apiFetch(`/bookings/${id}`);
+}
+
+// --- Checkout (Stripe / PayPal) ---
+
+export function createStripePaymentIntent(bookingId) {
+  return apiFetch(`/bookings/${bookingId}/checkout/stripe-intent`, { method: 'POST' });
+}
+
+export function finalizeStripePayment(bookingId, paymentIntentId) {
+  return apiFetch(`/bookings/${bookingId}/checkout/stripe-finalize`, {
+    method: 'POST',
+    body: JSON.stringify({ paymentIntentId })
+  });
+}
+
+export function createPaypalOrder(bookingId) {
+  return apiFetch(`/bookings/${bookingId}/checkout/paypal-order`, { method: 'POST' });
+}
+
+export function capturePaypalOrder(bookingId, orderId) {
+  return apiFetch(`/bookings/${bookingId}/checkout/paypal-capture`, {
+    method: 'POST',
+    body: JSON.stringify({ orderId })
+  });
+}

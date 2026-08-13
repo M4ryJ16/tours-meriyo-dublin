@@ -945,7 +945,7 @@ const preselectedTour = Astro.url.searchParams.get("tour") ?? "";
         const result = await submitBooking(pendingBooking);
         if (!result.ok) throw new Error(result.message);
 
-        window.location.href = `/reserva-confirmada?booking=${result.data.id}`;
+        window.location.href = `/pago?booking=${result.data.id}`;
       } catch (err: any) {
         if (verifyError) {
           verifyError.textContent = err?.message || 'No se ha podido verificar el código.';
@@ -1024,7 +1024,7 @@ const preselectedTour = Astro.url.searchParams.get("tour") ?? "";
         setSubmitting(true);
         const result = await submitBooking(bookingPayload);
         if (result.ok) {
-          window.location.href = `/reserva-confirmada?booking=${result.data.id}`;
+          window.location.href = `/pago?booking=${result.data.id}`;
         } else {
           showError(result.message);
           setSubmitting(false);

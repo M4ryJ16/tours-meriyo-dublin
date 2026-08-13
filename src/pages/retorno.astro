@@ -1,0 +1,72 @@
+---
+import Nav from "@/components/Nav.astro";
+
+export const prerender = false;
+
+const bookingId = Astro.url.searchParams.get("booking");
+const paymentIntentId = Astro.url.searchParams.get("payment_intent");
+
+if (!bookingId || !paymentIntentId) {
+  return Astro.redirect("/reservar");
+}
+---
+
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Confirmando pago — Tours Meriyo Dublín</title>
+    <meta name="robots" content="noindex" />
+    <link rel="stylesheet" href="/src/styles/global.css" />
+  </head>
+  <body>
+    <Nav />
+    <main>
+      <section class="retorno">
+        <div class="wrap retorno__inner">
+          <p class="eyebrow">Un momento</p>
+          <h1 class="retorno__title">Confirmando tu pago…</h1>
+          <p class="retorno__text" id="retorno-message">
+            Estamos verificando el resultado con el banco. No cierres esta ventana.
+          </p>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>
+
+<style is:global>
+  .retorno { min-height: 60vh; display: flex; align-items: center; background: var(--forest-deep); color: var(--parchment-alt); }
+  .retorno__inner { text-align: center; padding-block: 80px; }
+  .retorno__title {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-size: clamp(1.8rem, 3.6vw, 2.6rem);
+    color: var(--cream);
+    margin: 12px 0 16px;
+  }
+  .retorno__text { font-size: 0.95rem; max-width: 46ch; margin: 0 auto; }
+</style>
+
+<script define:vars={{ bookingId, paymentIntentId }}>
+  (async function finalize() {
+    const messageEl = document.getElementById('retorno-message');
+    try {
+      const res = await fetch(`/api/bookings/${bookingId}/checkout/stripe-finalize`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paymentIntentId })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.message || 'No se ha podido confirmar el pago.');
+      window.location.href = `/reserva-confirmada?booking=${bookingId}`;
+    } catch (err) {
+      messageEl.textContent = err?.message || 'No se ha podido confirmar el pago. Contacta con nosotros si el cargo se ha realizado.';
+      messageEl.insertAdjacentHTML(
+        'afterend',
+        `<p style="margin-top:20px"><a href="/pago?booking=${bookingId}" style="color:var(--gold-soft);text-decoration:underline;">Volver a intentarlo</a></p>`
+      );
+    }
+  })();
+</script>
